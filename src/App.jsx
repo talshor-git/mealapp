@@ -186,12 +186,12 @@ function Companion({ character, ratio, name }) {
 // ============================================================
 //  MEAL CARD
 // ============================================================
-function MealCard({ meal, onDelete }) {
+function MealCard({ meal, onDelete, onEdit, onClick }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   return (
-    <div style={{ background:"#fff", borderRadius:20, padding:14, boxShadow:T.shRaised,
-      display:"flex", alignItems:"center", gap:13, marginBottom:11 }}>
+    <div onClick={onClick} style={{ background:"#fff", borderRadius:20, padding:14, boxShadow:T.shRaised,
+      display:"flex", alignItems:"center", gap:13, marginBottom:11, cursor:onClick?"pointer":"default" }}>
       <div style={{ width:46, height:46, borderRadius:15, background:T.gradWarm, display:"flex",
         alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0,
         boxShadow:"0 6px 14px rgba(255,94,126,.32)" }}>{meal.emoji || type.emoji}</div>
@@ -209,10 +209,19 @@ function MealCard({ meal, onDelete }) {
         <p style={{ margin:0, fontSize:16, fontWeight:500, color:T.ink }}>{Math.round(n.calories||0)}</p>
         <p style={{ margin:"1px 0 0", fontSize:10, color:T.text3 }}>קק״ל</p>
       </div>
-      {onDelete && (
-        <button onClick={onDelete} aria-label="מחיקה" style={iconBtn}>
-          <Trash2 size={16} color={T.text3}/>
-        </button>
+      {(onEdit || onDelete) && (
+        <div style={{ display:"flex", gap:2 }}>
+          {onEdit && (
+            <button onClick={(e)=>{ e.stopPropagation(); onEdit(); }} aria-label="עריכה" style={iconBtn}>
+              <Pencil size={16} color={T.text3}/>
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={(e)=>{ e.stopPropagation(); onDelete(); }} aria-label="מחיקה" style={iconBtn}>
+              <Trash2 size={16} color={T.text3}/>
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -221,9 +230,69 @@ function MealCard({ meal, onDelete }) {
 const iconBtn = { background:"transparent", border:"none", cursor:"pointer", padding:6, borderRadius:10, display:"flex" };
 
 // ============================================================
+//  MEAL DETAILS MODAL — view what was entered
+// ============================================================
+function MealDetailsModal({ meal, onClose, onEdit }) {
+  const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
+  const n = meal.nutrition || {};
+  const ings = meal.ingredients || [];
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={sheet} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+          <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>פרטי הארוחה</h3>
+          <button onClick={onClose} aria-label="סגירה" style={iconBtn}><X size={22} color={T.text2}/></button>
+        </div>
+
+        <div style={{ overflowY:"auto", paddingLeft:2, marginTop:14 }}>
+          <div style={{ background:T.gradPrimary, borderRadius:22, padding:18, color:"#fff",
+            boxShadow:T.shGlow, marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:30 }}>{meal.emoji || type.emoji}</span>
+              <div>
+                <p style={{ margin:0, fontSize:17, fontWeight:500 }}>{meal.name}</p>
+                <p style={{ margin:"2px 0 0", fontSize:12, opacity:.9 }}>{type.label}</p>
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:16, textAlign:"center" }}>
+              {[["calories","קק״ל"],["protein","חלבון"],["carbs","פחמ׳"],["fat","שומן"]].map(([k,l])=>(
+                <div key={k}>
+                  <p style={{ margin:0, fontSize:20, fontWeight:700 }}>{Math.round(n[k]||0)}</p>
+                  <p style={{ margin:"2px 0 0", fontSize:11, opacity:.9 }}>{l}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", justifyContent:"center", marginTop:14 }}>
+              <Stars value={n.health}/>
+            </div>
+          </div>
+
+          {ings.length>0 && (
+            <div style={{ ...card2, marginBottom:16 }}>
+              <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:500, color:T.ink }}>רכיבים</p>
+              {ings.map((ing,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0",
+                  borderBottom: i<ings.length-1 ? `1px solid ${T.border}` : "none" }}>
+                  <span style={{ fontSize:14, color:T.ink, flex:1, textAlign:"right" }}>{ing.name}</span>
+                  <span style={{ fontSize:13, color:T.text3 }}>{[ing.qty, ing.unit].filter(Boolean).join(" ")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={onEdit} style={{ ...primaryBtn, width:"100%" }}>
+            <Pencil size={16}/> עריכת ארוחה
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 //  ADD-MEAL MODAL (3-step wizard)
 // ============================================================
-const emptyMeal = () => ({ id:uid(), name:"", type:"breakfast", emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], nutrition:null, source:null });
+const emptyMeal = (type="breakfast") => ({ id:uid(), name:"", type, emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], nutrition:null, source:null });
 
 function buildPrompt(meal) {
   const list = meal.ingredients.filter(i=>i.name.trim())
@@ -257,9 +326,14 @@ const normalize = (o)=>({
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
 });
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate }) {
+  const isEdit = !!initialMeal;
   const [step, setStep] = useState(1);
-  const [meal, setMeal] = useState(emptyMeal());
+  const [meal, setMeal] = useState(
+    initialMeal
+      ? { ...initialMeal, ingredients: initialMeal.ingredients?.length ? initialMeal.ingredients : [{ name:"", qty:"", unit:"גרם" }] }
+      : emptyMeal(initialType)
+  );
   const [source, setSource] = useState(null);         // 'ai' | 'manual'
   const [ingredientsDirty, setDirty] = useState(false);
   const [pastedAnswer, setPasted] = useState("");
@@ -333,7 +407,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals }) {
               </button>
             )}
             <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>
-              {step===1?"הוספת ארוחה":step===2?"בחירת מקור הערכים":"אישור והוספה"}
+              {step===1?(isEdit?"עריכת ארוחה":"הוספת ארוחה"):step===2?"בחירת מקור הערכים":"אישור והוספה"}
             </h3>
           </div>
           <button onClick={onClose} aria-label="סגירה" style={iconBtn}><X size={22} color={T.text2}/></button>
@@ -502,14 +576,20 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals }) {
                 style={{ ...input, width:58, textAlign:"center", fontSize:20 }}/>
             </div>
 
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>onSaveMeal(meal)} style={{ ...softBtn, flex:1 }}>
-                <Save size={16}/> שמירת ארוחה
+            {isEdit ? (
+              <button onClick={()=>onUpdate(meal)} style={{ ...primaryBtn, width:"100%" }}>
+                <Save size={16}/> שמירת שינויים
               </button>
-              <button onClick={()=>onAddToDay(meal)} style={{ ...primaryBtn, flex:1 }}>
-                <Plus size={16}/> הוספה ליומן
-              </button>
-            </div>
+            ) : (
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={()=>onSaveMeal(meal)} style={{ ...softBtn, flex:1 }}>
+                  <Save size={16}/> שמירת ארוחה
+                </button>
+                <button onClick={()=>onAddToDay(meal)} style={{ ...primaryBtn, flex:1 }}>
+                  <Plus size={16}/> הוספה ליומן
+                </button>
+              </div>
+            )}
           </div>
         )}
         </div>
@@ -532,7 +612,7 @@ function StepDots({ step }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal }) {
+function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
   const totals = dayTotals(day);
   const ratio = user.goal ? totals.calories/user.goal : 0;
   const meals = day?.meals || [];
@@ -576,9 +656,16 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal }) {
               <span style={{ display:"flex", alignItems:"center", gap:7, fontSize:15, fontWeight:500, color:T.ink }}>
                 <Ic size={17} color={T.coral}/> {MEAL_TYPES[t].label}
               </span>
-              {list.length>0 && <span style={{ fontSize:13, color:T.text3 }}>{Math.round(sub)} קק״ל</span>}
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {list.length>0 && <span style={{ fontSize:13, color:T.text3 }}>{Math.round(sub)} קק״ל</span>}
+                <button onClick={()=>onAdd(t)} aria-label={`הוספת ${MEAL_TYPES[t].label}`}
+                  style={{ ...iconBtn, background:"#FFF1F5" }}>
+                  <Plus size={16} color={T.rose}/>
+                </button>
+              </div>
             </div>
-            {list.map(m=><MealCard key={m.id} meal={m} onDelete={()=>onDeleteMeal(m.id)}/>)}
+            {list.map(m=><MealCard key={m.id} meal={m} onClick={()=>onViewMeal(m)}
+              onEdit={()=>onEditMeal(m)} onDelete={()=>onDeleteMeal(m.id)}/>)}
             {list.length===0 && (
               <button onClick={()=>onAdd(t)} style={emptyState}>
                 <Plus size={16}/> הוספת {MEAL_TYPES[t].label}
@@ -835,6 +922,8 @@ export default function App() {
   const [date, setDate] = useState(new Date());
   const [modal, setModal] = useState(false);
   const [modalType, setModalType] = useState(null);
+  const [detailsMeal, setDetailsMeal] = useState(null);
+  const [editMeal, setEditMeal] = useState(null);
 
   // load once
   useEffect(()=>{
@@ -875,6 +964,11 @@ export default function App() {
     days[dKey]={ ...days[dKey], meals:days[dKey].meals.filter(m=>m.id!==id) };
     return { ...d, days };
   });
+  const updateMeal = (updated)=> setData(d=>{
+    const days={ ...d.days }; if(!days[dKey]) return d;
+    days[dKey]={ ...days[dKey], meals:days[dKey].meals.map(m=>m.id===updated.id?{ ...updated }:m) };
+    return { ...d, days };
+  });
   const quickAddSaved = (sm)=>{ addMealToDay({ ...sm }); setTab("daily"); };
 
   const exportData = ()=>{
@@ -894,7 +988,7 @@ export default function App() {
     <div style={frame}>
       <div style={{ background:T.page, animation:"rise .3s ease" }}>
         {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user}
-          onAdd={openAdd} onDeleteMeal={deleteMeal}/>}
+          onAdd={openAdd} onDeleteMeal={deleteMeal} onViewMeal={setDetailsMeal} onEditMeal={setEditMeal}/>}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
           onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
@@ -913,10 +1007,21 @@ export default function App() {
       </div>
 
       {modal && (
-        <AddMealModal savedMeals={data.savedMeals}
+        <AddMealModal savedMeals={data.savedMeals} initialType={modalType}
           onClose={()=>setModal(false)}
           onAddToDay={(m)=>{ addMealToDay(m); setModal(false); setTab("daily"); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
+      )}
+
+      {detailsMeal && (
+        <MealDetailsModal meal={detailsMeal} onClose={()=>setDetailsMeal(null)}
+          onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); setEditMeal(m); }}/>
+      )}
+
+      {editMeal && (
+        <AddMealModal savedMeals={data.savedMeals} initialMeal={editMeal}
+          onClose={()=>setEditMeal(null)}
+          onUpdate={(m)=>{ updateMeal(m); setEditMeal(null); }}/>
       )}
     </div>
   );
