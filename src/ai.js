@@ -1,39 +1,8 @@
 // ============================================================
 //  שליחה ישירה למנוע Gemini מהאפליקציה.
 //  הקריאה נעשית ישירות מהדפדפן עם מפתח ה-API של המשתמשת.
+//  רשימת המודלים קבועה מראש בקוד (MODEL_OPTIONS) ולא נטענת דינמית.
 // ============================================================
-export async function listModels(apiKey) {
-  const models = [];
-  let pageToken = "";
-
-  do {
-    const params = new URLSearchParams({ key: apiKey, pageSize: "1000" });
-    if (pageToken) params.set("pageToken", pageToken);
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?${params}`);
-    if (!res.ok) {
-      let detail = "";
-      try {
-        const e = await res.json();
-        detail = e?.error?.message || "";
-      } catch {}
-      throw new Error(detail || `שגיאה מהשרת (${res.status})`);
-    }
-
-    const data = await res.json();
-    models.push(...(data?.models || []));
-    pageToken = data?.nextPageToken || "";
-  } while (pageToken);
-
-  return models
-    .map((m) => ({
-      name: (m.name || "").replace("models/", ""),
-      displayName: m.displayName || "",
-      canGenerate: (m.supportedGenerationMethods || []).includes("generateContent"),
-    }))
-    .filter((m) => m.name)
-    .sort((a, b) => Number(b.canGenerate) - Number(a.canGenerate) || a.name.localeCompare(b.name));
-}
-
 export async function sendToModel(prompt, apiKey, model) {
   const m = model && model.trim();
   if (!m) throw new Error("לא נבחר מודל. בחרי מודל בעמוד הפרופיל.");
