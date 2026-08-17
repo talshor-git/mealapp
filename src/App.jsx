@@ -919,7 +919,8 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
     try {
       const m = await listModels(aiKey.trim());
       setModels(m);
-      setAiModel(prev => (m.includes(prev) ? prev : (m[0] || "")));
+      const available = m.filter(x=>x.canGenerate);
+      setAiModel(prev => (available.some(x=>x.name===prev) ? prev : (available[0]?.name || "")));
     } catch (err) {
       setModelsError(err?.message || "טעינת המודלים נכשלה.");
     } finally {
@@ -930,7 +931,8 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
   useEffect(()=>{ if (aiKey.trim()) loadModels(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAI = ()=>{
-    onSaveAIConfig({ apiKey: aiKey.trim(), model: (aiModel.trim() || models[0] || "") });
+    if (!aiModel) { setModelsError("טעני את רשימת המודלים ובחרי מודל זמין."); return; }
+    onSaveAIConfig({ apiKey: aiKey.trim(), model: aiModel });
     setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
   };
 
@@ -969,6 +971,7 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
         <label style={lbl}>מפתח API (Gemini)</label>
         <input style={input} type="password" value={aiKey}
           onChange={e=>{ setAiKey(e.target.value); setModels([]); }}
+          onBlur={()=>{ if (aiKey.trim() && models.length===0) loadModels(); }}
           placeholder="AIza…" autoComplete="off"/>
         <button onClick={loadModels} disabled={modelsLoading || !aiKey.trim()}
           style={{ ...softBtn, width:"100%", marginTop:10, opacity:modelsLoading||!aiKey.trim()? .55 : 1 }}>
@@ -981,20 +984,28 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
         )}
 
         <label style={{ ...lbl, marginTop:12 }}>מודל</label>
-        {models.length>0 ? (
-          <select style={input} value={aiModel} onChange={e=>setAiModel(e.target.value)}>
-            {models.map(mm=>(
-              <option key={mm} value={mm}>{mm}</option>
-            ))}
-          </select>
-        ) : (
-          <input style={input} value={aiModel}
-            onChange={e=>setAiModel(e.target.value)} placeholder="gemini-3.6-flash"/>
+        <select style={input} value={aiModel} onChange={e=>setAiModel(e.target.value)}
+          disabled={modelsLoading || models.length===0}>
+          {models.length===0 && (
+            <option value="">{modelsLoading ? "טוען מודלים…" : "יש לטעון את רשימת המודלים"}</option>
+          )}
+          {models.map(m=>(
+            <option key={m.name} value={m.name} disabled={!m.canGenerate}>
+              {m.displayName ? `${m.displayName} — ${m.name}` : m.name}{m.canGenerate ? "" : " (לא תומך ביצירת תוכן)"}
+            </option>
+          ))}
+        </select>
+        {models.length>0 && (
+          <p style={{ margin:"6px 0 0", fontSize:11, color:T.protein }}>
+            נטענו {models.length} מודלים. זמינים לשליחה: {models.filter(m=>m.canGenerate).length}.
+          </p>
         )}
         <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
           לחיצה על כפתור הטעינה שולפת את כל המודלים שפתוחים למפתח שלך, כך שלא תתקעי על מודל שמושבת.
         </p>
-        <button onClick={saveAI} style={{ ...primaryBtn, width:"100%", marginTop:14 }}>
+        <button onClick={saveAI} disabled={!aiModel}
+          style={{ ...primaryBtn, width:"100%", marginTop:14, opacity:aiModel?1:.45,
+            cursor:aiModel?"pointer":"not-allowed" }}>
           {aiSaved ? <><Check size={16}/> נשמר</> : <><Save size={16}/> שמירת הגדרות</>}
         </button>
         <p style={{ margin:"10px 0 0", fontSize:11, color:T.text3 }}>
