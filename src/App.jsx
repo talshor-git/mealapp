@@ -35,7 +35,7 @@ const MEAL_TYPES = {
   snack: { label: "נשנוש", icon: Cookie, emoji: "🍪" },
 };
 const TYPE_ORDER = ["breakfast", "lunch", "dinner", "snack"];
-const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro", "gemini-2.5-flash", "gemini-2.5-pro"];
+const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro"];
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
@@ -1057,7 +1057,12 @@ export default function App() {
   useEffect(()=>{
     const d = loadData();
     setData(d || { user:null, days:{}, savedMeals:[] });
-    setAiConfig(loadAIConfig());
+    const ai = loadAIConfig();
+    if (ai && (!ai.model || !MODEL_OPTIONS.includes(ai.model))) {
+      ai.model = MODEL_OPTIONS[0];
+      saveAIConfig(ai);
+    }
+    setAiConfig(ai);
     setReady(true);
   },[]);
 
