@@ -468,7 +468,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             <label style={{ ...lbl, marginTop:16 }}>רכיבים</label>
             <div style={{ display:"flex", gap:8, marginBottom:12 }}>
               <button onClick={()=>setIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
-                <ListChecks size={15}/> אחד אחד
+                <ListChecks size={15}/> רשימת רכיבים
               </button>
               <button onClick={()=>setIngMode("text")} style={{ ...segBtn, ...(ingMode==="text"?segActive:{}) }}>
                 <Text size={15}/> טקסט חופשי
