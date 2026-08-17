@@ -3,9 +3,10 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text,
+  ListChecks, Text, Send, Loader2,
 } from "lucide-react";
-import { loadData, saveData } from "./storage.js";
+import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
+import { sendToModel } from "./ai.js";
 
 /* ============================================================
    בְּתֵאָבוֹן — יומן ארוחות בעברית
@@ -332,7 +333,7 @@ const normalize = (o)=>({
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
 });
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, aiConfig }) {
   const isEdit = !!initialMeal;
   const [step, setStep] = useState(1);
   const [meal, setMeal] = useState(
@@ -351,6 +352,8 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     initialMeal && (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
       ? "text" : "list"
   );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const setField = (k,v)=> setMeal(m=>({ ...m, [k]:v }));
   const setIng = (i,k,v)=> setMeal(m=>{ const ing=[...m.ingredients]; ing[i]={...ing[i],[k]:v}; return {...m,ingredients:ing}; });
@@ -387,6 +390,23 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     if (!pastedAnswer.trim()) return;
     const n = parseNutrition(pastedAnswer);
     setMeal(m=>({ ...m, nutrition:n, source:"ai" })); setDirty(false); setStep(3);
+  };
+
+  const sendAI = async ()=>{
+    if (!aiConfig?.apiKey) {
+      setAiError("לא הוגדר מפתח API — הוסיפי אותו בעמוד הפרופיל.");
+      return;
+    }
+    setAiLoading(true); setAiError("");
+    try {
+      const text = await sendToModel(buildPrompt(meal), aiConfig.apiKey, aiConfig.model);
+      const n = parseNutrition(text);
+      setMeal(m=>({ ...m, nutrition:n, source:"ai" })); setDirty(false); setStep(3);
+    } catch (err) {
+      setAiError(err?.message || "השליחה למודל נכשלה, נסי שוב.");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const submitManual = ()=>{
@@ -523,9 +543,36 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 <div style={miniBadge(T.gradPrimary)}><Sparkles size={16} color="#fff"/></div>
                 <span style={{ fontSize:15, fontWeight:500, color:T.ink }}>חישוב לפי הרכיבים</span>
               </div>
-              <p style={{ margin:"0 0 12px", fontSize:13, color:T.text2 }}>
-                העתיקי את הבקשה, שלחי אותה למנוע AI (למשל Claude או ChatGPT), והדביקי כאן בחזרה את התשובה.
+              <p style={{ margin:"0 0 14px", fontSize:13, color:T.text2 }}>
+                השליכי ישירות למודל, או העתיקי את הבקשה והדביקי כאן את התשובה.
               </p>
+
+              <button onClick={sendAI} disabled={aiLoading || !aiConfig?.apiKey}
+                style={{ ...primaryBtn, width:"100%", opacity:aiLoading||!aiConfig?.apiKey?.trim()?.length ? .5 : 1,
+                  cursor:aiLoading ? "wait" : (aiConfig?.apiKey ? "pointer" : "not-allowed") }}>
+                {aiLoading ? <Loader2 size={17} className="spin"/> : <Send size={17}/>}
+                {aiLoading ? "שולחת למודל…" : "שליחה למודל"}
+              </button>
+              {!aiConfig?.apiKey && (
+                <p style={{ margin:"6px 0 12px", fontSize:12, color:T.text3, textAlign:"center" }}>
+                  הוסיפי מפתח API של Gemini בעמוד הפרופיל כדי לשלוח ישירות.
+                </p>
+              )}
+              {aiError && (
+                <p style={{ margin:"0 0 12px", fontSize:12, color:T.fat, background:"#FBE4EF",
+                  borderRadius:10, padding:"8px 12px", textAlign:"center" }}>{aiError}</p>
+              )}
+
+              <div style={{ display:"flex", alignItems:"center", gap:10, margin:"10px 0 12px" }}>
+                <div style={{ flex:1, height:1, background:T.border }}/>
+                <span style={{ fontSize:12, color:T.text3 }}>או שיטה ידנית</span>
+                <div style={{ flex:1, height:1, background:T.border }}/>
+              </div>
+
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                <span style={stepChip}>1</span>
+                <span style={{ fontSize:13, fontWeight:500, color:T.ink }}>העתקת הבקשה</span>
+              </div>
 
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                 <span style={stepChip}>1</span>
@@ -857,8 +904,17 @@ function LibraryView({ savedMeals, onQuickAdd, onDelete }) {
 // ============================================================
 //  PROFILE VIEW
 // ============================================================
-function ProfileView({ user, setUser, onExport, onImport, onReset }) {
+function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
+  const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
+  const [aiModel, setAiModel] = useState(aiConfig?.model || "gemini-2.0-flash");
+  const [aiSaved, setAiSaved] = useState(false);
+
+  const saveAI = ()=>{
+    onSaveAIConfig({ apiKey: aiKey.trim(), model: (aiModel.trim() || "gemini-2.0-flash") });
+    setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
+  };
+
   return (
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 18px" }}>הפרופיל שלי</h2>
@@ -884,6 +940,25 @@ function ProfileView({ user, setUser, onExport, onImport, onReset }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
+        <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:500, color:T.ink }}>חיבור למנוע AI</p>
+        <p style={{ margin:"0 0 14px", fontSize:12, color:T.text3 }}>
+          כדי לשלוח את הפרומפט ישירות מהאפליקציה למודל Gemini.
+        </p>
+        <label style={lbl}>מפתח API (Gemini)</label>
+        <input style={input} type="password" value={aiKey}
+          onChange={e=>setAiKey(e.target.value)} placeholder="AIza…" autoComplete="off"/>
+        <label style={{ ...lbl, marginTop:12 }}>מודל</label>
+        <input style={input} value={aiModel}
+          onChange={e=>setAiModel(e.target.value)} placeholder="gemini-2.0-flash"/>
+        <button onClick={saveAI} style={{ ...primaryBtn, width:"100%", marginTop:14 }}>
+          {aiSaved ? <><Check size={16}/> נשמר</> : <><Save size={16}/> שמירת הגדרות</>}
+        </button>
+        <p style={{ margin:"10px 0 0", fontSize:11, color:T.text3 }}>
+          המפתח נשמר מקומית במכשיר בלבד, ואינו חלק מגיבוי הנתונים.
+        </p>
       </div>
 
       <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard }}>
@@ -963,11 +1038,13 @@ export default function App() {
   const [modalType, setModalType] = useState(null);
   const [detailsMeal, setDetailsMeal] = useState(null);
   const [editMeal, setEditMeal] = useState(null);
+  const [aiConfig, setAiConfig] = useState(null);
 
   // load once
   useEffect(()=>{
     const d = loadData();
     setData(d || { user:null, days:{}, savedMeals:[] });
+    setAiConfig(loadAIConfig());
     setReady(true);
   },[]);
 
@@ -1034,7 +1111,8 @@ export default function App() {
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
           onQuickAdd={quickAddSaved} onDelete={(id)=>setData(d=>({ ...d, savedMeals:d.savedMeals.filter(s=>s.id!==id) }))}/>}
         {tab==="profile" && <ProfileView user={data.user}
-          setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}/>}
+          setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}
+          aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
       </div>
 
       {/* bottom nav */}
@@ -1047,7 +1125,7 @@ export default function App() {
       </div>
 
       {modal && (
-        <AddMealModal savedMeals={data.savedMeals} initialType={modalType}
+        <AddMealModal savedMeals={data.savedMeals} initialType={modalType} aiConfig={aiConfig}
           onClose={()=>setModal(false)}
           onAddToDay={(m)=>{ addMealToDay(m); setModal(false); setTab("daily"); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
@@ -1059,7 +1137,7 @@ export default function App() {
       )}
 
       {editMeal && (
-        <AddMealModal savedMeals={data.savedMeals} initialMeal={editMeal}
+        <AddMealModal savedMeals={data.savedMeals} initialMeal={editMeal} aiConfig={aiConfig}
           onClose={()=>setEditMeal(null)}
           onUpdate={(m)=>{ updateMeal(m); setEditMeal(null); }}/>
       )}
