@@ -365,6 +365,15 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const onIngredientChange = (i,k,v)=>{ setIng(i,k,v); if (meal.nutrition){ setDirty(true); } };
   const onFreeTextChange = (e)=>{ setField("freeText", e.target.value); if (meal.nutrition){ setDirty(true); } };
 
+  // switching modes clears the other mode so the prompt never mixes the two
+  const switchIngMode = (mode)=>{
+    if (mode===ingMode) return;
+    setIngMode(mode);
+    if (mode==="text") setMeal(m=>({ ...m, ingredients:[{ name:"", qty:"", unit:"גרם" }] }));
+    else setMeal(m=>({ ...m, freeText:"" }));
+    if (meal.nutrition) setDirty(true);
+  };
+
   const goCheckValues = ()=>{
     if (meal.source && ingredientsDirty) {
       if (meal.source === "manual") { setSavedReminder(true); setStep(3); return; }
@@ -467,10 +476,10 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
             <label style={{ ...lbl, marginTop:16 }}>רכיבים</label>
             <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-              <button onClick={()=>setIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
+              <button onClick={()=>switchIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
                 <ListChecks size={15}/> רשימת רכיבים
               </button>
-              <button onClick={()=>setIngMode("text")} style={{ ...segBtn, ...(ingMode==="text"?segActive:{}) }}>
+              <button onClick={()=>switchIngMode("text")} style={{ ...segBtn, ...(ingMode==="text"?segActive:{}) }}>
                 <Text size={15}/> טקסט חופשי
               </button>
             </div>
