@@ -3,6 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
+  ListChecks, Text,
 } from "lucide-react";
 import { loadData, saveData } from "./storage.js";
 
@@ -267,7 +268,7 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
             </div>
           </div>
 
-          {ings.length>0 && (
+          {(ings.length>0 || (meal.freeText||"").trim()) && (
             <div style={{ ...card2, marginBottom:16 }}>
               <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:500, color:T.ink }}>רכיבים</p>
               {ings.map((ing,i)=>(
@@ -277,6 +278,9 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
                   <span style={{ fontSize:13, color:T.text3 }}>{[ing.qty, ing.unit].filter(Boolean).join(" ")}</span>
                 </div>
               ))}
+              {(meal.freeText||"").trim() && ings.length===0 && (
+                <p style={{ margin:0, fontSize:14, color:T.ink, lineHeight:1.6 }}>{meal.freeText}</p>
+              )}
             </div>
           )}
 
@@ -292,11 +296,13 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
 // ============================================================
 //  ADD-MEAL MODAL (3-step wizard)
 // ============================================================
-const emptyMeal = (type="breakfast") => ({ id:uid(), name:"", type, emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], nutrition:null, source:null });
+const emptyMeal = (type="breakfast") => ({ id:uid(), name:"", type, emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], freeText:"", nutrition:null, source:null });
 
 function buildPrompt(meal) {
-  const list = meal.ingredients.filter(i=>i.name.trim())
-    .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
+  const list = (meal.freeText||"").trim()
+    ? meal.freeText.trim()
+    : meal.ingredients.filter(i=>i.name.trim())
+        .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
   return `אתה מחשבון תזונה מדויק. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
 {"calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5}
 כאשר health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
@@ -341,16 +347,23 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [manual, setManual] = useState({ calories:"", protein:"", fat:"", carbs:"", health:3 });
   const [savedReminder, setSavedReminder] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [ingMode, setIngMode] = useState(
+    initialMeal && (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
+      ? "text" : "list"
+  );
 
   const setField = (k,v)=> setMeal(m=>({ ...m, [k]:v }));
   const setIng = (i,k,v)=> setMeal(m=>{ const ing=[...m.ingredients]; ing[i]={...ing[i],[k]:v}; return {...m,ingredients:ing}; });
   const addIng = ()=> setMeal(m=>({ ...m, ingredients:[...m.ingredients,{name:"",qty:"",unit:"גרם"}] }));
   const rmIng = (i)=> setMeal(m=>({ ...m, ingredients:m.ingredients.filter((_,x)=>x!==i) }));
 
-  const validStep1 = meal.name.trim() && meal.ingredients.some(i=>i.name.trim());
+  const validStep1 = meal.name.trim() && (
+    ingMode==="text" ? (meal.freeText||"").trim() : meal.ingredients.some(i=>i.name.trim())
+  );
 
   // business rule: editing ingredients invalidates derived values
   const onIngredientChange = (i,k,v)=>{ setIng(i,k,v); if (meal.nutrition){ setDirty(true); } };
+  const onFreeTextChange = (e)=>{ setField("freeText", e.target.value); if (meal.nutrition){ setDirty(true); } };
 
   const goCheckValues = ()=>{
     if (meal.source && ingredientsDirty) {
@@ -374,6 +387,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
   const loadSaved = (sm)=>{
     setMeal({ ...sm, id:uid(), ingredients: sm.ingredients?.length?sm.ingredients:[{name:"",qty:"",unit:"גרם"}] });
+    setIngMode((sm.freeText||"").trim() ? "text" : "list");
     setSource(sm.source); setShowLibrary(false); setDirty(false); setStep(3);
   };
 
@@ -452,21 +466,37 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             </div>
 
             <label style={{ ...lbl, marginTop:16 }}>רכיבים</label>
-            {meal.ingredients.map((ing,i)=>(
-              <div key={i} style={{ display:"flex", gap:6, marginBottom:8 }}>
-                <input style={{ ...input, flex:2 }} value={ing.name} onChange={e=>onIngredientChange(i,"name",e.target.value)} placeholder="רכיב"/>
-                <input style={{ ...input, width:60 }} value={ing.qty} onChange={e=>onIngredientChange(i,"qty",e.target.value)} placeholder="כמות" inputMode="numeric"/>
-                <select style={{ ...input, width:78, padding:"10px 8px" }} value={ing.unit} onChange={e=>onIngredientChange(i,"unit",e.target.value)}>
-                  {UNITS.map(u=><option key={u}>{u}</option>)}
-                </select>
-                {meal.ingredients.length>1 && (
-                  <button onClick={()=>rmIng(i)} aria-label="הסרה" style={iconBtn}><X size={16} color={T.text3}/></button>
-                )}
-              </div>
-            ))}
-            <button onClick={addIng} style={{ ...ghostBtn, width:"100%", marginTop:4 }}>
-              <Plus size={16}/> רכיב נוסף
-            </button>
+            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              <button onClick={()=>setIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
+                <ListChecks size={15}/> אחד אחד
+              </button>
+              <button onClick={()=>setIngMode("text")} style={{ ...segBtn, ...(ingMode==="text"?segActive:{}) }}>
+                <Text size={15}/> טקסט חופשי
+              </button>
+            </div>
+            {ingMode==="text" ? (
+              <textarea value={meal.freeText||""} onChange={onFreeTextChange}
+                placeholder="לדוגמה: 2 ביצים, 100 גרם שיבולת שועל, כוס חלב…"
+                style={{ ...input, height:96, resize:"none", fontSize:14, lineHeight:1.6 }}/>
+            ) : (
+              <>
+                {meal.ingredients.map((ing,i)=>(
+                  <div key={i} style={{ display:"flex", gap:6, marginBottom:8 }}>
+                    <input style={{ ...input, flex:2 }} value={ing.name} onChange={e=>onIngredientChange(i,"name",e.target.value)} placeholder="רכיב"/>
+                    <input style={{ ...input, width:60 }} value={ing.qty} onChange={e=>onIngredientChange(i,"qty",e.target.value)} placeholder="כמות" inputMode="numeric"/>
+                    <select style={{ ...input, width:78, padding:"10px 8px" }} value={ing.unit} onChange={e=>onIngredientChange(i,"unit",e.target.value)}>
+                      {UNITS.map(u=><option key={u}>{u}</option>)}
+                    </select>
+                    {meal.ingredients.length>1 && (
+                      <button onClick={()=>rmIng(i)} aria-label="הסרה" style={iconBtn}><X size={16} color={T.text3}/></button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={addIng} style={{ ...ghostBtn, width:"100%", marginTop:4 }}>
+                  <Plus size={16}/> רכיב נוסף
+                </button>
+              </>
+            )}
 
             <button disabled={!validStep1} onClick={goCheckValues}
               style={{ ...primaryBtn, width:"100%", marginTop:20, opacity:validStep1?1:.45, cursor:validStep1?"pointer":"not-allowed" }}>
@@ -956,7 +986,8 @@ export default function App() {
   const saveMeal = (meal)=> setData(d=>{
     const exists=d.savedMeals.some(s=>s.name===meal.name);
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||MEAL_TYPES[meal.type].emoji,
-      type:meal.type, ingredients:meal.ingredients, nutrition:meal.nutrition, source:meal.source };
+      type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
+      nutrition:meal.nutrition, source:meal.source };
     return { ...d, savedMeals: exists?d.savedMeals:[sm,...d.savedMeals] };
   });
   const deleteMeal = (id)=> setData(d=>{
