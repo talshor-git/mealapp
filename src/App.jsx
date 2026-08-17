@@ -6,7 +6,7 @@ import {
   ListChecks, Text, Send, Loader2,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
-import { sendToModel } from "./ai.js";
+import { sendToModel, listModels } from "./ai.js";
 
 /* ============================================================
    בְּתֵאָבוֹן — יומן ארוחות בעברית
@@ -907,11 +907,30 @@ function LibraryView({ savedMeals, onQuickAdd, onDelete }) {
 function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
-  const [aiModel, setAiModel] = useState(aiConfig?.model || "gemini-2.0-flash");
+  const [aiModel, setAiModel] = useState(aiConfig?.model || "");
   const [aiSaved, setAiSaved] = useState(false);
+  const [models, setModels] = useState([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+
+  const loadModels = async ()=>{
+    if (!aiKey.trim()) { setModelsError("הזיני מפתח API קודם."); return; }
+    setModelsLoading(true); setModelsError(""); setModels([]);
+    try {
+      const m = await listModels(aiKey.trim());
+      setModels(m);
+      setAiModel(prev => (m.includes(prev) ? prev : (m[0] || "")));
+    } catch (err) {
+      setModelsError(err?.message || "טעינת המודלים נכשלה.");
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
+  useEffect(()=>{ if (aiKey.trim()) loadModels(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAI = ()=>{
-    onSaveAIConfig({ apiKey: aiKey.trim(), model: (aiModel.trim() || "gemini-2.0-flash") });
+    onSaveAIConfig({ apiKey: aiKey.trim(), model: (aiModel.trim() || models[0] || "") });
     setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
   };
 
@@ -949,10 +968,32 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
         </p>
         <label style={lbl}>מפתח API (Gemini)</label>
         <input style={input} type="password" value={aiKey}
-          onChange={e=>setAiKey(e.target.value)} placeholder="AIza…" autoComplete="off"/>
+          onChange={e=>{ setAiKey(e.target.value); setModels([]); }}
+          placeholder="AIza…" autoComplete="off"/>
+        <button onClick={loadModels} disabled={modelsLoading || !aiKey.trim()}
+          style={{ ...softBtn, width:"100%", marginTop:10, opacity:modelsLoading||!aiKey.trim()? .55 : 1 }}>
+          {modelsLoading ? <Loader2 size={16} className="spin"/> : <Sparkles size={16}/>}
+          {models.length>0 ? "טעינה מחדש של המודלים" : "טעינת המודלים הזמינים"}
+        </button>
+        {modelsError && (
+          <p style={{ margin:"8px 0 0", fontSize:12, color:T.fat, background:"#FBE4EF",
+            borderRadius:10, padding:"8px 12px" }}>{modelsError}</p>
+        )}
+
         <label style={{ ...lbl, marginTop:12 }}>מודל</label>
-        <input style={input} value={aiModel}
-          onChange={e=>setAiModel(e.target.value)} placeholder="gemini-2.0-flash"/>
+        {models.length>0 ? (
+          <select style={input} value={aiModel} onChange={e=>setAiModel(e.target.value)}>
+            {models.map(mm=>(
+              <option key={mm} value={mm}>{mm}</option>
+            ))}
+          </select>
+        ) : (
+          <input style={input} value={aiModel}
+            onChange={e=>setAiModel(e.target.value)} placeholder="gemini-3.6-flash"/>
+        )}
+        <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
+          לחיצה על כפתור הטעינה שולפת את כל המודלים שפתוחים למפתח שלך, כך שלא תתקעי על מודל שמושבת.
+        </p>
         <button onClick={saveAI} style={{ ...primaryBtn, width:"100%", marginTop:14 }}>
           {aiSaved ? <><Check size={16}/> נשמר</> : <><Save size={16}/> שמירת הגדרות</>}
         </button>
