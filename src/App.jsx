@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Component } from "react";
 import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
@@ -35,11 +35,13 @@ const MEAL_TYPES = {
   snack: { label: "נשנוש", icon: Cookie, emoji: "🍪" },
 };
 const TYPE_ORDER = ["breakfast", "lunch", "dinner", "snack"];
+// גישה בטוחה לסוג ארוחה — נופל ל"נשנוש" אם הסוג חסר/לא ידוע
+const mealType = (t) => MEAL_TYPES[t] || MEAL_TYPES.snack;
 const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro"];
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.3";
+const APP_VERSION = "2.4";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -64,6 +66,30 @@ const dayTotals = (day) => {
   t.health = t.healthN ? t.healthSum/t.healthN : 0;
   return t;
 };
+
+// ============================================================
+//  ERROR BOUNDARY — מונע "מסך לבן" ונותן דרך חזרה
+// ============================================================
+export class ErrorBoundary extends Component {
+  constructor(props){ super(props); this.state = { error:null }; }
+  static getDerivedStateFromError(error){ return { error }; }
+  componentDidCatch(error, info){ console.error("בְּתֵאָבוֹן crashed:", error, info); }
+  render(){
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", alignItems:"center",
+        justifyContent:"center", gap:14, padding:"32px 24px", textAlign:"center", direction:"rtl",
+        fontFamily:"'Heebo',system-ui,sans-serif", background:T.page, color:T.ink }}>
+        <div style={{ fontSize:46 }}>😵‍💫</div>
+        <h2 style={{ margin:0, fontSize:20, fontWeight:700 }}>משהו השתבש</h2>
+        <p style={{ margin:0, fontSize:14, color:T.text2, maxWidth:300 }}>
+          קרתה תקלה לא צפויה. אפשר לרענן ולהמשיך — הנתונים שלך שמורים במכשיר.
+        </p>
+        <button onClick={()=>location.reload()} style={{ ...primaryBtn, marginTop:4 }}>רענון</button>
+      </div>
+    );
+  }
+}
 
 // ============================================================
 //  THE PLATE — dual ring (outer: calories vs goal, inner: macros)
@@ -364,7 +390,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const addIng = ()=> setMeal(m=>({ ...m, ingredients:[...m.ingredients,{name:"",qty:"",unit:"גרם"}] }));
   const rmIng = (i)=> setMeal(m=>({ ...m, ingredients:m.ingredients.filter((_,x)=>x!==i) }));
 
-  const validStep1 = meal.name.trim() && (
+  const validStep1 = meal.name.trim() && meal.type && (
     ingMode==="text" ? (meal.freeText||"").trim() : meal.ingredients.some(i=>i.name.trim())
   );
 
@@ -542,6 +568,13 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               style={{ ...primaryBtn, width:"100%", marginTop:20, opacity:validStep1?1:.45, cursor:validStep1?"pointer":"not-allowed" }}>
               <Sparkles size={18}/> בדיקת ערכים
             </button>
+            {!validStep1 && (
+              <p style={{ margin:"10px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
+                {!meal.name.trim() ? "כדי להמשיך צריך למלא שם לארוחה"
+                  : !meal.type ? "כדי להמשיך צריך לבחור סוג ארוחה"
+                  : "כדי להמשיך צריך למלא לפחות רכיב אחד"}
+              </p>
+            )}
           </div>
         )}
 
@@ -648,9 +681,9 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             <div style={{ background:T.gradPrimary, borderRadius:22, padding:18, color:"#fff",
               boxShadow:T.shGlow, marginBottom:16 }}>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:30 }}>{meal.emoji || MEAL_TYPES[meal.type].emoji}</span>
+                <span style={{ fontSize:30 }}>{meal.emoji || mealType(meal.type).emoji}</span>
                 <div><p style={{ margin:0, fontSize:17, fontWeight:500 }}>{meal.name}</p>
-                <p style={{ margin:"2px 0 0", fontSize:12, opacity:.9 }}>{MEAL_TYPES[meal.type].label}</p></div>
+                <p style={{ margin:"2px 0 0", fontSize:12, opacity:.9 }}>{mealType(meal.type).label}</p></div>
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", marginTop:16, textAlign:"center" }}>
                 {[["calories","קק״ל"],["protein","חלבון"],["carbs","פחמ׳"],["fat","שומן"]].map(([k,l])=>(
@@ -669,7 +702,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
               <label style={{ ...lbl, margin:0 }}>אמוג׳י לספרייה</label>
               <input value={meal.emoji} onChange={e=>setField("emoji",e.target.value)}
-                placeholder={MEAL_TYPES[meal.type].emoji} maxLength={2}
+                placeholder={mealType(meal.type).emoji} maxLength={2}
                 style={{ ...input, width:58, textAlign:"center", fontSize:20 }}/>
             </div>
 
@@ -828,7 +861,7 @@ function WeekGrid({ anchor, setAnchor, days, user, onPick }) {
         {week.map(d=>{
           const day = days[key(d)]; const t = dayTotals(day);
           const pct = user.goal ? Math.min(t.calories/user.goal,1) : 0;
-          const emojis = (day?.meals||[]).slice(0,5).map(m=>m.emoji||MEAL_TYPES[m.type].emoji).join(" ");
+          const emojis = (day?.meals||[]).slice(0,5).map(m=>m.emoji||mealType(m.type).emoji).join(" ");
           return (
             <button key={key(d)} onClick={()=>onPick(d)} style={weekRow}>
               <div style={{ width:44, textAlign:"center" }}>
@@ -1127,7 +1160,7 @@ export default function App() {
     days[dKey]=cur; return { ...d, days };
   });
   const saveMeal = (meal)=> setData(d=>{
-    const sm={ id:uid(), name:meal.name, emoji:meal.emoji||MEAL_TYPES[meal.type].emoji,
+    const sm={ id:uid(), name:meal.name, emoji:meal.emoji||mealType(meal.type).emoji,
       type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
       nutrition:meal.nutrition, source:meal.source };
     const idx=d.savedMeals.findIndex(s=>s.name===meal.name);
