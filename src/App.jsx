@@ -39,6 +39,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+const APP_VERSION = "2.1";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1021,6 +1022,10 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
       </div>
 
       <button onClick={onReset} style={{ ...linkBtn, marginTop:20, color:T.fat }}>איפוס כל הנתונים</button>
+
+      <p style={{ margin:"24px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
+        בְּתֵאָבוֹן · גרסה {APP_VERSION}
+      </p>
     </div>
   );
 }
