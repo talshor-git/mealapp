@@ -41,7 +41,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.5";
+const APP_VERSION = "2.6";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -271,7 +271,7 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
       <div style={sheet} onClick={e=>e.stopPropagation()}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
           <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>פרטי הארוחה</h3>
-          <button onClick={onClose} aria-label="סגירה" style={iconBtn}><X size={22} color={T.text2}/></button>
+          <button onClick={onClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
         </div>
 
         <div style={{ overflowY:"auto", paddingLeft:2, marginTop:14 }}>
@@ -385,6 +385,13 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  // יציאה במקש Esc (נוחות בדסקטופ)
+  useEffect(()=>{
+    const onKey = (e)=>{ if(e.key==="Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[onClose]);
+
   const setField = (k,v)=> setMeal(m=>({ ...m, [k]:v }));
   const setIng = (i,k,v)=> setMeal(m=>{ const ing=[...m.ingredients]; ing[i]={...ing[i],[k]:v}; return {...m,ingredients:ing}; });
   const addIng = ()=> setMeal(m=>({ ...m, ingredients:[...m.ingredients,{name:"",qty:"",unit:"גרם"}] }));
@@ -490,7 +497,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               {step===1?(isEdit?(isSavedEdit?"עריכת ארוחה שמורה":"עריכת ארוחה"):"הוספת ארוחה"):step===2?"בחירת מקור הערכים":"אישור והוספה"}
             </h3>
           </div>
-          <button onClick={onClose} aria-label="סגירה" style={iconBtn}><X size={22} color={T.text2}/></button>
+          <button onClick={onClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
         </div>
         <StepDots step={step}/>
 
@@ -1276,9 +1283,16 @@ const fab = { width:56, height:56, borderRadius:20, background:T.gradPrimary, bo
   boxShadow:T.shFab };
 
 const overlay = { position:"fixed", inset:0, background:"rgba(28,24,38,.4)", backdropFilter:"blur(3px)",
-  display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:50 };
-const sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"92dvh", borderRadius:"28px 28px 0 0",
+  display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:50,
+  paddingTop:"max(env(safe-area-inset-top, 0px), 12px)",
+  paddingBottom:"max(env(safe-area-inset-bottom, 0px), 12px)" };
+const sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"100%", borderRadius:"28px 28px 0 0",
   padding:"20px 18px 22px", display:"flex", flexDirection:"column", animation:"rise .28s ease" };
+
+// כפתור סגירה גדול וברור — יעד מגע נוח במובייל
+const closeBtn = { width:44, height:44, borderRadius:"50%", border:"none", background:"#F1ECFB",
+  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+  cursor:"pointer", touchAction:"manipulation" };
 
 const lbl = { display:"block", fontSize:13, fontWeight:500, color:T.text2, marginBottom:7 };
 const input = { width:"100%", fontSize:15, padding:"11px 14px", border:`1.5px solid ${T.border}`,
