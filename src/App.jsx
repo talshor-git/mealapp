@@ -39,7 +39,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.2";
+const APP_VERSION = "2.3";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -239,7 +239,7 @@ const iconBtn = { background:"transparent", border:"none", cursor:"pointer", pad
 function MealDetailsModal({ meal, onClose, onEdit }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
-  const ings = meal.ingredients || [];
+  const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
   return (
     <div style={overlay} onClick={onClose}>
       <div style={sheet} onClick={e=>e.stopPropagation()}>
