@@ -41,7 +41,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.6";
+const APP_VERSION = "2.7";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -378,6 +378,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [savedReminder, setSavedReminder] = useState(false);
   const [savedLib, setSavedLib] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const [ingMode, setIngMode] = useState(
     initialMeal && (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
       ? "text" : "list"
@@ -620,22 +621,28 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 <div style={{ flex:1, height:1, background:T.border }}/>
               </div>
 
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                 <span style={stepChip}>1</span>
                 <span style={{ fontSize:13, fontWeight:500, color:T.ink }}>העתקת הבקשה</span>
               </div>
 
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                <span style={stepChip}>1</span>
-                <span style={{ fontSize:13, fontWeight:500, color:T.ink }}>העתקת הבקשה</span>
-              </div>
-              <div style={{ position:"relative" }}>
+              {/* כפתור ההעתקה — במרכז העניין */}
+              <button onClick={copyPrompt}
+                style={{ ...primaryBtn, width:"100%", padding:"15px 20px", fontSize:16,
+                  ...(copied ? { background:"linear-gradient(135deg,#0E9E76,#12B98A)",
+                    boxShadow:"0 14px 34px rgba(14,158,118,.34)" } : {}) }}>
+                {copied ? <><Check size={19}/> הועתק ללוח</> : <><Copy size={19}/> העתקת הבקשה</>}
+              </button>
+
+              {/* הפרומפט עצמו מוסתר כברירת מחדל */}
+              <button onClick={()=>setShowPrompt(v=>!v)}
+                style={{ ...linkBtn, display:"block", margin:"10px auto 0", fontSize:12, color:T.text3 }}>
+                {showPrompt ? "הסתרת נוסח הבקשה" : "הצגת נוסח הבקשה"}
+              </button>
+              {showPrompt && (
                 <textarea readOnly value={buildPrompt(meal)}
-                  style={{ ...input, height:112, resize:"none", fontSize:12, lineHeight:1.55, background:T.page }}/>
-                <button onClick={copyPrompt} style={{ ...pill, position:"absolute", top:8, left:8, padding:"6px 11px", fontSize:12 }}>
-                  {copied?<><Check size={13}/> הועתק</>:<><Copy size={13}/> העתקה</>}
-                </button>
-              </div>
+                  style={{ ...input, height:96, resize:"none", fontSize:12, lineHeight:1.55, background:T.page, marginTop:8 }}/>
+              )}
 
               <div style={{ display:"flex", alignItems:"center", gap:6, margin:"14px 0 6px" }}>
                 <span style={stepChip}>2</span>
