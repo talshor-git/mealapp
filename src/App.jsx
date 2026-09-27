@@ -41,7 +41,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.7";
+const APP_VERSION = "2.8";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1291,10 +1291,10 @@ const fab = { width:56, height:56, borderRadius:20, background:T.gradPrimary, bo
 
 const overlay = { position:"fixed", inset:0, background:"rgba(28,24,38,.4)", backdropFilter:"blur(3px)",
   display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:50,
-  paddingTop:"max(env(safe-area-inset-top, 0px), 12px)",
-  paddingBottom:"max(env(safe-area-inset-bottom, 0px), 12px)" };
+  paddingTop:"max(env(safe-area-inset-top, 0px), 12px)" };
 const sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"100%", borderRadius:"28px 28px 0 0",
-  padding:"20px 18px 22px", display:"flex", flexDirection:"column", animation:"rise .28s ease" };
+  padding:"20px 18px calc(22px + env(safe-area-inset-bottom, 0px))", display:"flex", flexDirection:"column",
+  animation:"rise .28s ease" };
 
 // כפתור סגירה גדול וברור — יעד מגע נוח במובייל
 const closeBtn = { width:44, height:44, borderRadius:"50%", border:"none", background:"#F1ECFB",
