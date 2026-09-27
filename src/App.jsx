@@ -348,6 +348,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [copied, setCopied] = useState(false);
   const [manual, setManual] = useState({ calories:"", protein:"", fat:"", carbs:"", health:3 });
   const [savedReminder, setSavedReminder] = useState(false);
+  const [savedLib, setSavedLib] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [ingMode, setIngMode] = useState(
     initialMeal && (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
@@ -419,6 +420,13 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     setMeal({ ...sm, id:uid(), ingredients: sm.ingredients?.length?sm.ingredients:[{name:"",qty:"",unit:"גרם"}] });
     setIngMode((sm.freeText||"").trim() ? "text" : "list");
     setSource(sm.source); setShowLibrary(false); setDirty(false); setStep(3);
+  };
+
+  // שמירה לספריית הארוחות השמורות (זמין גם בעריכה)
+  const addToLibrary = ()=>{
+    if (!onSaveMeal) return;
+    onSaveMeal(meal);
+    setSavedLib(true); setTimeout(()=>setSavedLib(false),1800);
   };
 
   const copyPrompt = async ()=>{
@@ -664,13 +672,23 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             </div>
 
             {isEdit ? (
-              <button onClick={()=>onUpdate(meal)} style={{ ...primaryBtn, width:"100%" }}>
-                <Save size={16}/> שמירת שינויים
-              </button>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <button onClick={()=>onUpdate(meal)} style={{ ...primaryBtn, width:"100%" }}>
+                  <Save size={16}/> שמירת שינויים
+                </button>
+                <button onClick={addToLibrary} style={{ ...softBtn, width:"100%" }}>
+                  {savedLib
+                    ? <><Check size={16}/> נשמרה בארוחות השמורות</>
+                    : <><BookOpen size={16}/> הוספה לארוחה שמורה</>}
+                </button>
+                <p style={{ margin:0, fontSize:11, color:T.text3, textAlign:"center" }}>
+                  שמירה בספרייה מאפשרת להוסיף את הארוחה הזו שוב בעתיד בלחיצה אחת.
+                </p>
+              </div>
             ) : (
               <div style={{ display:"flex", gap:10 }}>
-                <button onClick={()=>onSaveMeal(meal)} style={{ ...softBtn, flex:1 }}>
-                  <Save size={16}/> שמירת ארוחה
+                <button onClick={addToLibrary} style={{ ...softBtn, flex:1 }}>
+                  {savedLib ? <><Check size={16}/> נשמרה</> : <><Save size={16}/> שמירת ארוחה</>}
                 </button>
                 <button onClick={()=>onAddToDay(meal)} style={{ ...primaryBtn, flex:1 }}>
                   <Plus size={16}/> הוספה ליומן
@@ -1088,11 +1106,12 @@ export default function App() {
     days[dKey]=cur; return { ...d, days };
   });
   const saveMeal = (meal)=> setData(d=>{
-    const exists=d.savedMeals.some(s=>s.name===meal.name);
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||MEAL_TYPES[meal.type].emoji,
       type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
       nutrition:meal.nutrition, source:meal.source };
-    return { ...d, savedMeals: exists?d.savedMeals:[sm,...d.savedMeals] };
+    const idx=d.savedMeals.findIndex(s=>s.name===meal.name);
+    if (idx===-1) return { ...d, savedMeals:[sm,...d.savedMeals] };
+    return { ...d, savedMeals:d.savedMeals.map((s,i)=> i===idx ? { ...sm, id:s.id } : s) };
   });
   const deleteMeal = (id)=> setData(d=>{
     const days={ ...d.days }; if(!days[dKey]) return d;
@@ -1157,7 +1176,8 @@ export default function App() {
       {editMeal && (
         <AddMealModal savedMeals={data.savedMeals} initialMeal={editMeal} aiConfig={aiConfig}
           onClose={()=>setEditMeal(null)}
-          onUpdate={(m)=>{ updateMeal(m); setEditMeal(null); }}/>
+          onUpdate={(m)=>{ updateMeal(m); setEditMeal(null); }}
+          onSaveMeal={(m)=>{ saveMeal(m); }}/>
       )}
     </div>
   );
