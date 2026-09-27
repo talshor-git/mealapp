@@ -39,7 +39,7 @@ const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.2";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -740,15 +740,15 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
     <div style={{ padding:"0 18px 120px" }}>
       {/* date nav */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 4px 10px" }}>
-        <button onClick={()=>setDate(addDays(date,1))} style={iconBtn}><ChevronRight size={22} color={T.text2}/></button>
+        <button onClick={()=>setDate(addDays(date,1))} disabled={today}
+          style={{ ...iconBtn, opacity:today?.3:1 }}><ChevronRight size={22} color={T.text2}/></button>
         <div style={{ textAlign:"center" }}>
           <p style={{ margin:0, fontSize:17, fontWeight:500, color:T.ink }}>
             {today ? "היום" : `יום ${HE_DAYS[date.getDay()]}`}
           </p>
           <p style={{ margin:"2px 0 0", fontSize:12, color:T.text3 }}>{date.getDate()} ב{HE_MONTHS[date.getMonth()]}</p>
         </div>
-        <button onClick={()=>setDate(addDays(date,-1))} disabled={today}
-          style={{ ...iconBtn, opacity:today?.3:1 }}><ChevronLeft size={22} color={T.text2}/></button>
+        <button onClick={()=>setDate(addDays(date,-1))} style={iconBtn}><ChevronLeft size={22} color={T.text2}/></button>
       </div>
 
       {/* the plate */}
