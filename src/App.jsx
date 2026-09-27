@@ -334,8 +334,9 @@ const normalize = (o)=>({
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
 });
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, aiConfig }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig }) {
   const isEdit = !!initialMeal;
+  const isSavedEdit = !!onUpdateSaved;
   const [step, setStep] = useState(1);
   const [meal, setMeal] = useState(
     initialMeal
@@ -459,7 +460,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               </button>
             )}
             <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>
-              {step===1?(isEdit?"עריכת ארוחה":"הוספת ארוחה"):step===2?"בחירת מקור הערכים":"אישור והוספה"}
+              {step===1?(isEdit?(isSavedEdit?"עריכת ארוחה שמורה":"עריכת ארוחה"):"הוספת ארוחה"):step===2?"בחירת מקור הערכים":"אישור והוספה"}
             </h3>
           </div>
           <button onClick={onClose} aria-label="סגירה" style={iconBtn}><X size={22} color={T.text2}/></button>
@@ -470,7 +471,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         {/* ---------- STEP 1 ---------- */}
         {step===1 && (
           <div>
-            {savedMeals.length>0 && (
+            {!isSavedEdit && savedMeals.length>0 && (
               <button onClick={()=>setShowLibrary(v=>!v)} style={{ ...pill, width:"100%", justifyContent:"center", marginBottom:14 }}>
                 <BookOpen size={16}/> טעינת ארוחה שמורה
               </button>
@@ -672,19 +673,30 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             </div>
 
             {isEdit ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                <button onClick={()=>onUpdate(meal)} style={{ ...primaryBtn, width:"100%" }}>
-                  <Save size={16}/> שמירת שינויים
-                </button>
-                <button onClick={addToLibrary} style={{ ...softBtn, width:"100%" }}>
-                  {savedLib
-                    ? <><Check size={16}/> נשמרה בארוחות השמורות</>
-                    : <><BookOpen size={16}/> הוספה לארוחה שמורה</>}
-                </button>
-                <p style={{ margin:0, fontSize:11, color:T.text3, textAlign:"center" }}>
-                  שמירה בספרייה מאפשרת להוסיף את הארוחה הזו שוב בעתיד בלחיצה אחת.
-                </p>
-              </div>
+              isSavedEdit ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  <button onClick={()=>onUpdateSaved(meal)} style={{ ...primaryBtn, width:"100%" }}>
+                    <Save size={16}/> עדכון הארוחה השמורה
+                  </button>
+                  <p style={{ margin:0, fontSize:11, color:T.text3, textAlign:"center" }}>
+                    העדכון יחול על הארוחה השמורה בלבד — רשומות שכבר נוספו ליומן לא ישתנו.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  <button onClick={()=>onUpdate(meal)} style={{ ...primaryBtn, width:"100%" }}>
+                    <Save size={16}/> שמירת שינויים
+                  </button>
+                  <button onClick={addToLibrary} style={{ ...softBtn, width:"100%" }}>
+                    {savedLib
+                      ? <><Check size={16}/> נשמרה בארוחות השמורות</>
+                      : <><BookOpen size={16}/> הוספה לארוחה שמורה</>}
+                  </button>
+                  <p style={{ margin:0, fontSize:11, color:T.text3, textAlign:"center" }}>
+                    שמירה בספרייה מאפשרת להוסיף את הארוחה הזו שוב בעתיד בלחיצה אחת.
+                  </p>
+                </div>
+              )
             ) : (
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={addToLibrary} style={{ ...softBtn, flex:1 }}>
@@ -891,7 +903,7 @@ function NavRow({ onPrev, onNext, label }) {
 // ============================================================
 //  LIBRARY VIEW
 // ============================================================
-function LibraryView({ savedMeals, onQuickAdd, onDelete }) {
+function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete }) {
   return (
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 4px" }}>ספריית ארוחות</h2>
@@ -903,17 +915,20 @@ function LibraryView({ savedMeals, onQuickAdd, onDelete }) {
       )}
       {savedMeals.map(sm=>(
         <div key={sm.id} style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard,
-          display:"flex", alignItems:"center", gap:13, marginBottom:11 }}>
+          display:"flex", alignItems:"center", gap:8, marginBottom:11 }}>
           <div style={{ width:44, height:44, borderRadius:14, background:T.proteinL, display:"flex",
-            alignItems:"center", justifyContent:"center", fontSize:22 }}>{sm.emoji||"🍽️"}</div>
+            alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{sm.emoji||"🍽️"}</div>
           <div style={{ flex:1, minWidth:0 }}>
-            <p style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink }}>{sm.name}</p>
-            <p style={{ margin:"3px 0 0", fontSize:12, color:T.text3 }}>
+            <p title={sm.name} style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink,
+              lineHeight:1.3, overflowWrap:"anywhere" }}>{sm.name}</p>
+            <p style={{ margin:"3px 0 0", fontSize:12, color:T.text3,
+              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
               {Math.round(sm.nutrition?.calories||0)} קק״ל · {MEAL_TYPES[sm.type]?.label}
             </p>
           </div>
-          <button onClick={()=>onQuickAdd(sm)} style={{ ...pill, padding:"7px 12px" }}><Plus size={14}/> הוספה</button>
-          <button onClick={()=>onDelete(sm.id)} aria-label="מחיקה" style={iconBtn}><Trash2 size={16} color={T.text3}/></button>
+          <button onClick={()=>onQuickAdd(sm)} style={{ ...pill, padding:"7px 12px", flexShrink:0 }}><Plus size={14}/> הוספה</button>
+          <button onClick={()=>onEdit(sm)} aria-label="עריכה" style={{ ...iconBtn, flexShrink:0 }}><Pencil size={16} color={T.text3}/></button>
+          <button onClick={()=>onDelete(sm.id)} aria-label="מחיקה" style={{ ...iconBtn, flexShrink:0 }}><Trash2 size={16} color={T.text3}/></button>
         </div>
       ))}
     </div>
@@ -1069,6 +1084,7 @@ export default function App() {
   const [modalType, setModalType] = useState(null);
   const [detailsMeal, setDetailsMeal] = useState(null);
   const [editMeal, setEditMeal] = useState(null);
+  const [editSavedMeal, setEditSavedMeal] = useState(null);
   const [aiConfig, setAiConfig] = useState(null);
 
   // load once
@@ -1123,6 +1139,11 @@ export default function App() {
     days[dKey]={ ...days[dKey], meals:days[dKey].meals.map(m=>m.id===updated.id?{ ...updated }:m) };
     return { ...d, days };
   });
+  // עדכון ארוחה שמורה בלבד — לא נוגע ברשומות שכבר ביומן
+  const updateSavedMeal = (updated)=> setData(d=>({
+    ...d,
+    savedMeals: d.savedMeals.map(s=> s.id===updated.id ? { ...updated, id:s.id } : s),
+  }));
   const quickAddSaved = (sm)=>{ addMealToDay({ ...sm }); setTab("daily"); };
 
   const exportData = ()=>{
@@ -1146,7 +1167,8 @@ export default function App() {
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
           onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
-          onQuickAdd={quickAddSaved} onDelete={(id)=>setData(d=>({ ...d, savedMeals:d.savedMeals.filter(s=>s.id!==id) }))}/>}
+          onQuickAdd={quickAddSaved} onEdit={setEditSavedMeal}
+          onDelete={(id)=>setData(d=>({ ...d, savedMeals:d.savedMeals.filter(s=>s.id!==id) }))}/>}
         {tab==="profile" && <ProfileView user={data.user}
           setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}
           aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
@@ -1178,6 +1200,12 @@ export default function App() {
           onClose={()=>setEditMeal(null)}
           onUpdate={(m)=>{ updateMeal(m); setEditMeal(null); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
+      )}
+
+      {editSavedMeal && (
+        <AddMealModal savedMeals={data.savedMeals} initialMeal={editSavedMeal} aiConfig={aiConfig}
+          onClose={()=>setEditSavedMeal(null)}
+          onUpdateSaved={(m)=>{ updateSavedMeal(m); setEditSavedMeal(null); }}/>
       )}
     </div>
   );
