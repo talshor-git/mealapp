@@ -37,6 +37,14 @@ const MEAL_TYPES = {
 const TYPE_ORDER = ["breakfast", "lunch", "dinner", "snack"];
 // גישה בטוחה לסוג ארוחה — נופל ל"נשנוש" אם הסוג חסר/לא ידוע
 const mealType = (t) => MEAL_TYPES[t] || MEAL_TYPES.snack;
+// סוג ארוחה אוטומטי לפי השעה ביום
+// 06:00–11:59 בוקר · 12:00–17:59 צהריים · 18:00–05:59 ערב
+const mealTypeByTime = (d = new Date()) => {
+  const h = d.getHours();
+  if (h >= 6 && h < 12) return "breakfast";
+  if (h >= 12 && h < 18) return "lunch";
+  return "dinner";
+};
 const MODEL_OPTIONS = [
   { id:"deepseek/deepseek-v4.1-flash", label:"DeepSeek V4.1 Flash", provider:"OpenRouter" },
   { id:"gemini-3.6-flash",       label:"Gemini 3.6 Flash",      provider:"Gemini" },
@@ -49,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.9";
+const APP_VERSION = "2.10";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -333,7 +341,7 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
 // ============================================================
 //  ADD-MEAL MODAL (3-step wizard)
 // ============================================================
-const emptyMeal = (type="breakfast") => ({ id:uid(), name:"", type, emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], freeText:"", nutrition:null, source:null });
+const emptyMeal = (type) => ({ id:uid(), name:"", type: type || mealTypeByTime(), emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], freeText:"", nutrition:null, source:null });
 
 function buildPrompt(meal) {
   const list = (meal.freeText||"").trim()
@@ -534,19 +542,6 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             <label style={lbl}>שם הארוחה</label>
             <input style={input} value={meal.name} onChange={e=>setField("name",e.target.value)} placeholder="לדוגמה: אומלט ירקות"/>
 
-            <label style={{ ...lbl, marginTop:16 }}>סוג הארוחה</label>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-              {TYPE_ORDER.map(t=>{
-                const Ic = MEAL_TYPES[t].icon, active = meal.type===t;
-                return (
-                  <button key={t} onClick={()=>setField("type",t)} style={{
-                    ...typeBtn, ...(active?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
-                    <Ic size={18}/><span style={{ fontSize:11 }}>{MEAL_TYPES[t].label.replace("ארוחת ","")}</span>
-                  </button>
-                );
-              })}
-            </div>
-
             <label style={{ ...lbl, marginTop:16 }}>רכיבים</label>
             <div style={{ display:"flex", gap:8, marginBottom:12 }}>
               <button onClick={()=>switchIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
@@ -578,6 +573,24 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                   <Plus size={16}/> רכיב נוסף
                 </button>
               </>
+            )}
+
+            <label style={{ ...lbl, marginTop:16 }}>סוג הארוחה</label>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+              {TYPE_ORDER.map(t=>{
+                const Ic = MEAL_TYPES[t].icon, active = meal.type===t;
+                return (
+                  <button key={t} onClick={()=>setField("type",t)} style={{
+                    ...typeBtn, ...(active?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
+                    <Ic size={18}/><span style={{ fontSize:11 }}>{MEAL_TYPES[t].label.replace("ארוחת ","")}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!isEdit && !initialType && meal.type===mealTypeByTime() && (
+              <p style={{ margin:"8px 0 0", fontSize:11, color:T.text3, textAlign:"center" }}>
+                סוג הארוחה נבחר אוטומטית לפי השעה — אפשר לשנות.
+              </p>
             )}
 
             <button disabled={!validStep1} onClick={goCheckValues}
