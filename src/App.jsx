@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.10";
+const APP_VERSION = "2.11";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -349,20 +349,20 @@ function buildPrompt(meal) {
     : meal.ingredients.filter(i=>i.name.trim())
         .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
   return `אתה מחשבון תזונה מדויק. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
-{"calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5}
-כאשר health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
-שם הארוחה: ${meal.name}
+{"name": "שם קצר ומושך לארוחה בעברית (2-4 מילים), לפי ההקשר של הרכיבים", "calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5}
+כאשר name הוא שם הארוחה (החלק הראשון), ו-health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
 רכיבים: ${list}`;
 }
 
 function parseNutrition(text) {
   const clean = text.replace(/```json|```/g,"").trim();
   try {
-    const o = JSON.parse(clean);
-    return normalize(o);
+    return normalize(JSON.parse(clean));
   } catch {
     const num = (re)=>{ const m=clean.match(re); return m?parseFloat(m[1]):0; };
+    const str = (re)=>{ const m=clean.match(re); return m?m[1].trim():""; };
     return normalize({
+      name: str(/name["']?\s*[:=]\s*"?([^",\n}]+)"?/i) || str(/שם[^:"}]*["']?\s*[:=]\s*"?([^",\n}]+)"?/i),
       calories:num(/calories["':\s]+(\d+\.?\d*)/i) || num(/קלוריות[:\s]+(\d+)/),
       protein:num(/protein["':\s]+(\d+\.?\d*)/i) || num(/חלבון[:\s]+(\d+)/),
       fat:num(/fat["':\s]+(\d+\.?\d*)/i) || num(/שומן[:\s]+(\d+)/),
@@ -372,6 +372,7 @@ function parseNutrition(text) {
   }
 }
 const normalize = (o)=>({
+  name: typeof o.name === "string" ? o.name.trim().slice(0,60) : "",
   calories:Math.round(+o.calories||0), protein:Math.round(+o.protein||0),
   fat:Math.round(+o.fat||0), carbs:Math.round(+o.carbs||0),
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
@@ -414,9 +415,25 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const addIng = ()=> setMeal(m=>({ ...m, ingredients:[...m.ingredients,{name:"",qty:"",unit:"גרם"}] }));
   const rmIng = (i)=> setMeal(m=>({ ...m, ingredients:m.ingredients.filter((_,x)=>x!==i) }));
 
-  const validStep1 = meal.name.trim() && meal.type && (
+  const validStep1 = meal.type && (
     ingMode==="text" ? (meal.freeText||"").trim() : meal.ingredients.some(i=>i.name.trim())
   );
+
+  // שם חלופי כשאין תשובת AI (למשל הזנה ידנית מהאריזה)
+  const fallbackName = (m)=>{
+    const first = (m.ingredients||[]).find(i=>(i.name||"").trim());
+    if (first) return first.name.trim();
+    const ft = (m.freeText||"").trim();
+    if (ft) return ft.split(/[,\n]/)[0].trim().slice(0,40);
+    return mealType(m.type).label;
+  };
+  // החלת הערכים שחושבו + שם הארוחה (לא דורסים שם קיים בעריכה)
+  const applyNutrition = (m, n, source)=>({
+    ...m,
+    nutrition: { calories:n.calories, protein:n.protein, fat:n.fat, carbs:n.carbs, health:n.health },
+    name: (m.name||"").trim() ? m.name : (n.name || fallbackName(m)),
+    source,
+  });
 
   // business rule: editing ingredients invalidates derived values
   const onIngredientChange = (i,k,v)=>{ setIng(i,k,v); if (meal.nutrition){ setDirty(true); } };
@@ -443,7 +460,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const processPasted = ()=>{
     if (!pastedAnswer.trim()) return;
     const n = parseNutrition(pastedAnswer);
-    setMeal(m=>({ ...m, nutrition:n, source:"ai" })); setDirty(false); setStep(3);
+    setMeal(m=>applyNutrition(m, n, "ai")); setDirty(false); setStep(3);
   };
 
   const sendAI = async ()=>{
@@ -455,7 +472,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     try {
       const text = await sendToModel(buildPrompt(meal), aiConfig.apiKey, aiConfig.model);
       const n = parseNutrition(text);
-      setMeal(m=>({ ...m, nutrition:n, source:"ai" })); setDirty(false); setStep(3);
+      setMeal(m=>applyNutrition(m, n, "ai")); setDirty(false); setStep(3);
     } catch (err) {
       setAiError(err?.message || "השליחה למודל נכשלה, נסי שוב.");
     } finally {
@@ -465,7 +482,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
   const submitManual = ()=>{
     const n = normalize(manual);
-    setMeal(m=>({ ...m, nutrition:n, source:"manual" })); setDirty(false); setStep(3);
+    setMeal(m=>applyNutrition(m, n, "manual")); setDirty(false); setStep(3);
   };
 
   const loadSaved = (sm)=>{
@@ -539,10 +556,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               </div>
             )}
 
-            <label style={lbl}>שם הארוחה</label>
-            <input style={input} value={meal.name} onChange={e=>setField("name",e.target.value)} placeholder="לדוגמה: אומלט ירקות"/>
-
-            <label style={{ ...lbl, marginTop:16 }}>רכיבים</label>
+            <label style={lbl}>רכיבים</label>
             <div style={{ display:"flex", gap:8, marginBottom:12 }}>
               <button onClick={()=>switchIngMode("list")} style={{ ...segBtn, ...(ingMode==="list"?segActive:{}) }}>
                 <ListChecks size={15}/> רשימת רכיבים
@@ -599,8 +613,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             </button>
             {!validStep1 && (
               <p style={{ margin:"10px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
-                {!meal.name.trim() ? "כדי להמשיך צריך למלא שם לארוחה"
-                  : !meal.type ? "כדי להמשיך צריך לבחור סוג ארוחה"
+                {!meal.type ? "כדי להמשיך צריך לבחור סוג ארוחה"
                   : "כדי להמשיך צריך למלא לפחות רכיב אחד"}
               </p>
             )}
@@ -733,8 +746,12 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               </div>
             </div>
 
+            <label style={lbl}>שם הארוחה</label>
+            <input style={input} value={meal.name} onChange={e=>setField("name",e.target.value)}
+              placeholder="לדוגמה: אומלט ירקות"/>
+
             {/* emoji for saving */}
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0" }}>
               <label style={{ ...lbl, margin:0 }}>אמוג׳י לספרייה</label>
               <input value={meal.emoji} onChange={e=>setField("emoji",e.target.value)}
                 placeholder={mealType(meal.type).emoji} maxLength={2}
