@@ -3,7 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text, Send, Loader2,
+  ListChecks, Text, Send, Loader2, ClipboardPaste,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
 import { sendToModel } from "./ai.js";
@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.12";
+const APP_VERSION = "2.13";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -414,7 +414,6 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   );
   const [source, setSource] = useState(null);         // 'ai' | 'manual'
   const [ingredientsDirty, setDirty] = useState(false);
-  const [pastedAnswer, setPasted] = useState("");
   const [copied, setCopied] = useState(false);
   const [manual, setManual] = useState({ calories:"", protein:"", fat:"", carbs:"", health:3 });
   const [savedReminder, setSavedReminder] = useState(false);
@@ -492,9 +491,25 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     setStep(2);
   };
 
-  const processPasted = ()=>{
-    if (!pastedAnswer.trim()) return;
-    const n = parseNutrition(pastedAnswer);
+  // חילוץ הערכים ישירות מהלוח (ההעתקה האחרונה) — בלי תיבת הדבקה
+  const extractFromClipboard = async ()=>{
+    setAiError("");
+    let text = "";
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      setAiError("לא הצלחתי לקרוא מהלוח. אשרי גישה ללוח בהגדרות הדפדפן ונסי שוב.");
+      return;
+    }
+    if (!text || !text.trim()) {
+      setAiError("הלוח ריק — העתיקי קודם את תשובת המנוע, ואז נסי שוב.");
+      return;
+    }
+    const n = parseNutrition(text);
+    if (!n.calories && !n.protein && !n.carbs && !n.fat && !n.name) {
+      setAiError("לא זוהו ערכים בהעתקה האחרונה. ודאי שהעתקת את תשובת המנוע (JSON).");
+      return;
+    }
     setMeal(m=>applyNutrition(m, n, "ai")); setDirty(false); setStep(3);
   };
 
@@ -715,15 +730,13 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
               <div style={{ display:"flex", alignItems:"center", gap:6, margin:"14px 0 6px" }}>
                 <span style={stepChip}>2</span>
-                <span style={{ fontSize:13, fontWeight:500, color:T.ink }}>הדבקת התשובה</span>
+                <span style={{ fontSize:13, fontWeight:500, color:T.ink }}>חילוץ הערכים</span>
               </div>
-              <textarea value={pastedAnswer} onChange={e=>setPasted(e.target.value)}
-                placeholder="הדביקי כאן את תשובת המנוע…"
-                style={{ ...input, height:80, resize:"none", fontSize:12 }}/>
-              <button onClick={processPasted} disabled={!pastedAnswer.trim()}
-                style={{ ...primaryBtn, width:"100%", marginTop:10, opacity:pastedAnswer.trim()?1:.45,
-                  cursor:pastedAnswer.trim()?"pointer":"not-allowed" }}>
-                <Sparkles size={16}/> חילוץ הערכים
+              <p style={{ margin:"0 0 10px", fontSize:12, color:T.text3 }}>
+                העתיקי את תשובת המנוע, ואז לחצי כאן — הערכים ייקראו אוטומטית מהלוח.
+              </p>
+              <button onClick={extractFromClipboard} style={{ ...primaryBtn, width:"100%" }}>
+                <ClipboardPaste size={16}/> חילוץ הערכים
               </button>
             </div>
 
