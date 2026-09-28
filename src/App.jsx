@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.11";
+const APP_VERSION = "2.12";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -105,6 +105,31 @@ export class ErrorBoundary extends Component {
       </div>
     );
   }
+}
+
+// ============================================================
+//  CONFIRM DIALOG — וידוא לפני פעולה בלתי הפיכה (מחיקה / יציאה)
+// ============================================================
+function ConfirmDialog({ title, message, confirmLabel="אישור", cancelLabel="ביטול", danger=true, onConfirm, onCancel }) {
+  return (
+    <div style={{ ...overlay, zIndex:60, alignItems:"center", justifyContent:"center", padding:"0 24px" }}>
+      <div style={{ background:"#fff", borderRadius:22, padding:"22px 20px", width:"100%", maxWidth:360,
+        boxShadow:"0 20px 50px rgba(0,0,0,.28)", textAlign:"center", animation:"rise .2s ease" }}>
+        <div style={{ fontSize:38, marginBottom:6 }}>{danger ? "🗑️" : "⚠️"}</div>
+        <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:T.ink }}>{title}</h3>
+        {message && (
+          <p style={{ margin:"8px 0 0", fontSize:14, color:T.text2, lineHeight:1.6 }}>{message}</p>
+        )}
+        <div style={{ display:"flex", gap:10, marginTop:20 }}>
+          <button onClick={onCancel} style={{ ...softBtn, flex:1, background:"#F1ECFB", color:T.text2 }}>{cancelLabel}</button>
+          <button onClick={onConfirm} style={{ ...primaryBtn, flex:1,
+            ...(danger ? { background:"linear-gradient(135deg,#FF5E7E,#D6337E)", boxShadow:"0 14px 34px rgba(214,51,126,.34)" } : {}) }}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ============================================================
@@ -402,13 +427,23 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   );
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [exitConfirm, setExitConfirm] = useState(false);
 
-  // יציאה במקש Esc (נוחות בדסקטופ)
+  // האם המשתמשת שינתה משהו מאז פתיחת החלון (לצורך וידוא ביציאה)
+  const initialSnapRef = useRef(null);
+  if (initialSnapRef.current === null) initialSnapRef.current = JSON.stringify(meal);
+  const isDirty = JSON.stringify(meal) !== initialSnapRef.current;
+
+  const requestClose = ()=>{ if (isDirty) setExitConfirm(true); else onClose(); };
+
+  // יציאה במקש Esc (נוחות בדסקטופ) + סגירת דיאלוג הווידוא
+  const escHandlerRef = useRef();
+  escHandlerRef.current = ()=>{ if (exitConfirm) setExitConfirm(false); else requestClose(); };
   useEffect(()=>{
-    const onKey = (e)=>{ if(e.key==="Escape") onClose(); };
+    const onKey = (e)=>{ if(e.key==="Escape") escHandlerRef.current(); };
     window.addEventListener("keydown", onKey);
     return ()=>window.removeEventListener("keydown", onKey);
-  },[onClose]);
+  },[]);
 
   const setField = (k,v)=> setMeal(m=>({ ...m, [k]:v }));
   const setIng = (i,k,v)=> setMeal(m=>{ const ing=[...m.ingredients]; ing[i]={...ing[i],[k]:v}; return {...m,ingredients:ing}; });
@@ -531,7 +566,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               {step===1?(isEdit?(isSavedEdit?"עריכת ארוחה שמורה":"עריכת ארוחה"):"הוספת ארוחה"):step===2?"בחירת מקור הערכים":"אישור והוספה"}
             </h3>
           </div>
-          <button onClick={onClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
+          <button onClick={requestClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
         </div>
         <StepDots step={step}/>
 
@@ -797,6 +832,14 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         )}
         </div>
       </div>
+
+      {exitConfirm && (
+        <ConfirmDialog danger={false} title="לצאת בלי לשמור?"
+          message="השינויים שלא נשמרו יאבדו."
+          confirmLabel="יציאה" cancelLabel="המשך עריכה"
+          onCancel={()=>setExitConfirm(false)}
+          onConfirm={()=>{ setExitConfirm(false); onClose(); }}/>
+      )}
     </div>
   );
 }
@@ -1196,6 +1239,7 @@ export default function App() {
   const [detailsMeal, setDetailsMeal] = useState(null);
   const [editMeal, setEditMeal] = useState(null);
   const [editSavedMeal, setEditSavedMeal] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
   const [aiConfig, setAiConfig] = useState(null);
 
   // load once
@@ -1266,7 +1310,27 @@ export default function App() {
     r.onload=()=>{ try{ const d=JSON.parse(r.result); if(d.user&&d.days) setData(d); }catch{} };
     r.readAsText(file);
   };
-  const reset = ()=>{ if(confirm("לאפס את כל הנתונים?")) setData({ user:null, days:{}, savedMeals:[] }); };
+  const reset = ()=> setConfirmState({
+    title:"לאפס את כל הנתונים?",
+    message:"כל הארוחות, היומן והספרייה יימחקו מהמכשיר. הפעולה אינה ניתנת לשחזור.",
+    confirmLabel:"איפוס",
+    onConfirm:()=> setData({ user:null, days:{}, savedMeals:[] }),
+  });
+
+  // וידוא לפני מחיקת ארוחה מהיומן
+  const requestDeleteMeal = (id)=> setConfirmState({
+    title:"למחוק את הארוחה?",
+    message:"הארוחה תוסר מהיומן. הפעולה אינה ניתנת לשחזור.",
+    confirmLabel:"מחיקה",
+    onConfirm:()=> deleteMeal(id),
+  });
+  // וידוא לפני מחיקת ארוחה שמורה
+  const requestDeleteSaved = (id)=> setConfirmState({
+    title:"למחוק את הארוחה השמורה?",
+    message:"הארוחה תוסר מהספרייה. הפעולה אינה ניתנת לשחזור.",
+    confirmLabel:"מחיקה",
+    onConfirm:()=> setData(d=>({ ...d, savedMeals:d.savedMeals.filter(s=>s.id!==id) })),
+  });
 
   const openAdd = (type)=>{ setModalType(type); setModal(true); };
 
@@ -1274,12 +1338,12 @@ export default function App() {
     <div style={frame}>
       <div style={{ background:T.page, animation:"rise .3s ease" }}>
         {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user}
-          onAdd={openAdd} onDeleteMeal={deleteMeal} onViewMeal={setDetailsMeal} onEditMeal={setEditMeal}/>}
+          onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={setDetailsMeal} onEditMeal={setEditMeal}/>}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
           onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
           onQuickAdd={quickAddSaved} onEdit={setEditSavedMeal}
-          onDelete={(id)=>setData(d=>({ ...d, savedMeals:d.savedMeals.filter(s=>s.id!==id) }))}/>}
+          onDelete={requestDeleteSaved}/>}
         {tab==="profile" && <ProfileView user={data.user}
           setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}
           aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
@@ -1317,6 +1381,13 @@ export default function App() {
         <AddMealModal savedMeals={data.savedMeals} initialMeal={editSavedMeal} aiConfig={aiConfig}
           onClose={()=>setEditSavedMeal(null)}
           onUpdateSaved={(m)=>{ updateSavedMeal(m); setEditSavedMeal(null); }}/>
+      )}
+
+      {confirmState && (
+        <ConfirmDialog title={confirmState.title} message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          onCancel={()=>setConfirmState(null)}
+          onConfirm={()=>{ const fn=confirmState.onConfirm; setConfirmState(null); if(fn) fn(); }}/>
       )}
     </div>
   );
