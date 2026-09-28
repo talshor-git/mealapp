@@ -37,11 +37,19 @@ const MEAL_TYPES = {
 const TYPE_ORDER = ["breakfast", "lunch", "dinner", "snack"];
 // גישה בטוחה לסוג ארוחה — נופל ל"נשנוש" אם הסוג חסר/לא ידוע
 const mealType = (t) => MEAL_TYPES[t] || MEAL_TYPES.snack;
-const MODEL_OPTIONS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro"];
+const MODEL_OPTIONS = [
+  { id:"deepseek/deepseek-v4.1-flash", label:"DeepSeek V4.1 Flash", provider:"OpenRouter" },
+  { id:"gemini-3.6-flash",       label:"Gemini 3.6 Flash",      provider:"Gemini" },
+  { id:"gemini-3.5-flash",       label:"Gemini 3.5 Flash",      provider:"Gemini" },
+  { id:"gemini-3.5-flash-lite",  label:"Gemini 3.5 Flash Lite", provider:"Gemini" },
+  { id:"gemini-3.1-pro",         label:"Gemini 3.1 Pro",        provider:"Gemini" },
+];
+const MODEL_IDS = MODEL_OPTIONS.map(m=>m.id);
+const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.8";
+const APP_VERSION = "2.9";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -607,7 +615,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               </button>
               {!aiConfig?.apiKey && (
                 <p style={{ margin:"6px 0 12px", fontSize:12, color:T.text3, textAlign:"center" }}>
-                  הוסיפי מפתח API של Gemini בעמוד הפרופיל כדי לשלוח ישירות.
+                  הוסיפי מפתח API של Gemini או OpenRouter בעמוד הפרופיל כדי לשלוח ישירות.
                 </p>
               )}
               {aiError && (
@@ -990,9 +998,21 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
   const fileRef = useRef();
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
   const [aiModel, setAiModel] = useState(
-    aiConfig?.model && MODEL_OPTIONS.includes(aiConfig.model) ? aiConfig.model : MODEL_OPTIONS[0]
+    aiConfig?.model && MODEL_IDS.includes(aiConfig.model) ? aiConfig.model : DEFAULT_MODEL
   );
   const [aiSaved, setAiSaved] = useState(false);
+
+  // התאמת מודל אוטומטית כשסוג המפתח לא תואם לספק של המודל הנבחר
+  useEffect(()=>{
+    const k = aiKey.trim();
+    const cur = MODEL_OPTIONS.find(m=>m.id===aiModel);
+    if (!cur) return;
+    if (/^sk-or-/i.test(k) && cur.provider !== "OpenRouter") {
+      setAiModel(MODEL_OPTIONS.find(m=>m.provider==="OpenRouter").id);
+    } else if (/^AIza/i.test(k) && cur.provider === "OpenRouter") {
+      setAiModel(MODEL_OPTIONS.find(m=>m.provider==="Gemini").id);
+    }
+  },[aiKey]);
 
   const saveAI = ()=>{
     onSaveAIConfig({ apiKey: aiKey.trim(), model: aiModel });
@@ -1029,22 +1049,31 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
       <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
         <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:500, color:T.ink }}>חיבור למנוע AI</p>
         <p style={{ margin:"0 0 14px", fontSize:12, color:T.text3 }}>
-          כדי לשלוח את הפרומפט ישירות מהאפליקציה למודל Gemini.
+          כדי לשלוח את הפרומפט ישירות מהאפליקציה למנוע ה-AI.
         </p>
-        <label style={lbl}>מפתח API (Gemini)</label>
+        <label style={lbl}>מפתח API</label>
         <input style={input} type="password" value={aiKey}
           onChange={e=>setAiKey(e.target.value)}
-          placeholder="AIza…" autoComplete="off"/>
+          placeholder="AIza… (Gemini) או sk-or-… (OpenRouter)" autoComplete="off"/>
+        <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
+          תומך במפתח של Google Gemini ובמפתח של OpenRouter.
+        </p>
 
         <label style={{ ...lbl, marginTop:12 }}>מודל</label>
         <select style={input} value={aiModel} onChange={e=>setAiModel(e.target.value)}>
           {MODEL_OPTIONS.map(m=>(
-            <option key={m} value={m}>{m}</option>
+            <option key={m.id} value={m.id}>{m.label} · {m.provider}</option>
           ))}
         </select>
-        <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
-          רשימת המודלים נתמכת וקבועה מראש — לא צריך לטעון אותה.
-        </p>
+        {aiModel.includes("/") ? (
+          <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
+            מאמץ חשיבה: גבוה (High) — נשלח אוטומטית.
+          </p>
+        ) : (
+          <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
+            רשימת המודלים קבועה מראש — לא צריך לטעון אותה.
+          </p>
+        )}
         <button onClick={saveAI} disabled={!aiKey.trim()}
           style={{ ...primaryBtn, width:"100%", marginTop:14, opacity:aiKey.trim()?1:.45,
             cursor:aiKey.trim()?"pointer":"not-allowed" }}>
@@ -1144,8 +1173,8 @@ export default function App() {
     const d = loadData();
     setData(d || { user:null, days:{}, savedMeals:[] });
     const ai = loadAIConfig();
-    if (ai && (!ai.model || !MODEL_OPTIONS.includes(ai.model))) {
-      ai.model = MODEL_OPTIONS[0];
+    if (ai && (!ai.model || !MODEL_IDS.includes(ai.model))) {
+      ai.model = DEFAULT_MODEL;
       saveAIConfig(ai);
     }
     setAiConfig(ai);
