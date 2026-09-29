@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.12";
+const APP_VERSION = "2.14";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -180,6 +180,61 @@ function Plate({ totals, goal }) {
         <span style={{ fontSize:12, color:T.text3, marginTop:2 }}>מתוך {goal} קק״ל</span>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+//  BARS — תצוגה חלופית: קלוריות שנותרו + פס מקטעים
+// ============================================================
+function Bars({ totals, goal }) {
+  const consumed = Math.round(totals.calories || 0);
+  const g = Math.round(goal || 0);
+  const over = g > 0 && consumed > g;
+  const remaining = Math.max(g - consumed, 0);
+  const base = Math.max(g, consumed, 1);
+
+  const pC = (totals.protein||0)*4, cC = (totals.carbs||0)*4, fC = (totals.fat||0)*9;
+  const mSum = pC + cC + fC;
+  const consumedPct = Math.min(consumed / base, 1) * 100;
+  const segs = mSum > 0
+    ? [{ c:T.protein, w:pC/mSum }, { c:T.carbs, w:cC/mSum }, { c:T.fat, w:fC/mSum }]
+    : [{ c:T.rose, w:1 }];
+
+  return (
+    <div style={{ width:"100%", maxWidth:360, background:"#fff", borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
+      <p style={{ margin:0, fontSize:13, color:T.text3 }}>{over ? "מעל היעד" : "נותרו היום"}</p>
+      <p style={{ margin:"4px 0 0", display:"flex", alignItems:"baseline", gap:6 }}>
+        <span style={{ fontSize:42, fontWeight:700, color:over?T.fat:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
+          {(over ? consumed-g : remaining).toLocaleString("he-IL")}
+        </span>
+        <span style={{ fontSize:15, fontWeight:500, color:T.text3 }}>קק״ל</span>
+      </p>
+      <div style={{ display:"flex", height:16, borderRadius:999, overflow:"hidden", background:T.border, marginTop:14 }}>
+        {segs.map((s,i)=>(
+          <div key={i} style={{ width:`${consumedPct*s.w}%`, background:s.c }}/>
+        ))}
+        <div style={{ flex:1 }}/>
+      </div>
+      <p style={{ margin:"10px 0 0", fontSize:12, color:T.text3 }}>
+        {over ? `מתוך ${g.toLocaleString("he-IL")} קק״ל · ${consumed.toLocaleString("he-IL")} נצרכו`
+              : `${consumed.toLocaleString("he-IL")} מתוך ${g.toLocaleString("he-IL")} קק״ל`}
+      </p>
+    </div>
+  );
+}
+
+// כיתוב הקלוריות שנותרו — בין התרשים לכוכבים
+function RemainingCaption({ totals, goal }) {
+  const consumed = Math.round(totals.calories || 0);
+  const g = Math.round(goal || 0);
+  const remaining = g - consumed;
+  const over = g > 0 && remaining < 0;
+  return (
+    <p style={{ margin:0, fontSize:14, fontWeight:500, color: over ? T.fat : T.text2 }}>
+      {over
+        ? `עברת את היעד ב-${Math.abs(remaining).toLocaleString("he-IL")} קק״ל`
+        : `נותרו לך ${Math.max(remaining,0).toLocaleString("he-IL")} קק״ל היום`}
+    </p>
   );
 }
 
@@ -879,9 +934,16 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
         <button onClick={()=>setDate(addDays(date,-1))} style={iconBtn}><ChevronLeft size={22} color={T.text2}/></button>
       </div>
 
-      {/* the plate */}
+      {/* the plate / bars */}
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"12px 0 18px" }}>
-        <Plate totals={totals} goal={user.goal}/>
+        {user.chartStyle==="bars" ? (
+          <Bars totals={totals} goal={user.goal}/>
+        ) : (
+          <>
+            <Plate totals={totals} goal={user.goal}/>
+            <RemainingCaption totals={totals} goal={user.goal}/>
+          </>
+        )}
         <Stars value={totals.health}/>
         <MacroLegend totals={totals} user={user}/>
       </div>
@@ -1113,6 +1175,16 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
           {[["chef_m","👨‍🍳","שף"],["chef_f","👩‍🍳","שפית"]].map(([v,e,l])=>(
             <button key={v} onClick={()=>setUser({ ...user, character:v })}
               style={{ ...typeBtn, flex:1, ...(user.character===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent" }:{}) }}>
+              <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
+            </button>
+          ))}
+        </div>
+
+        <label style={{ ...lbl, marginTop:14 }}>תצוגת סיכום יומי</label>
+        <div style={{ display:"flex", gap:10 }}>
+          {[["ring","🍩","גלגל"],["bars","📊","פסים"]].map(([v,e,l])=>(
+            <button key={v} onClick={()=>setUser({ ...user, chartStyle:v })}
+              style={{ ...typeBtn, flex:1, ...((user.chartStyle||"ring")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
               <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
             </button>
           ))}
