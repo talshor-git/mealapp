@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.17";
+const APP_VERSION = "2.18";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -286,17 +286,18 @@ function MacroLegend({ totals, user }) {
     { label:"פחמימות", color:T.carbs,   val:totals.carbs,   goal:user.goalCarbs },
     { label:"שומן",    color:T.fat,     val:totals.fat,     goal:user.goalFat },
   ];
-  // שורה קומפקטית אחת — פחות מקום במסך
+  // שורה קומפקטית בתוך מסגרת לבנה עם ריווח
   return (
-    <div style={{ display:"flex", justifyContent:"center", flexWrap:"wrap", gap:"2px 12px",
-      width:"100%", padding:"0 2px" }}>
-      {items.map(it=>(
-        <span key={it.label} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:12 }}>
-          <span style={{ width:7, height:7, borderRadius:"50%", background:it.color }}/>
-          <span style={{ fontWeight:500, color:it.color }}>{it.label}</span>
-          <span style={{ fontWeight:500, color:T.ink }}>{Math.round(it.val)}<span style={{ color:T.text3, fontWeight:400 }}>/{it.goal||0}</span></span>
-        </span>
-      ))}
+    <div style={{ width:"100%", background:"#fff", borderRadius:14, padding:"11px 12px", boxShadow:T.shCard }}>
+      <div style={{ display:"flex", justifyContent:"center", flexWrap:"wrap", gap:"6px 12px" }}>
+        {items.map(it=>(
+          <span key={it.label} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12.5 }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:it.color }}/>
+            <span style={{ fontWeight:500, color:it.color }}>{it.label}</span>
+            <span style={{ fontWeight:500, color:T.ink }}>{Math.round(it.val)}<span style={{ color:T.text3, fontWeight:400 }}>/{it.goal||0}</span></span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
