@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.15";
+const APP_VERSION = "2.16";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -187,18 +187,23 @@ function Plate({ totals, goal }) {
 //  BARS — תצוגה חלופית: קלוריות שנותרו + פס מקטעים
 // ============================================================
 function Bars({ totals, goal }) {
+  const [sel, setSel] = useState(null);   // 'protein' | 'carbs' | 'fat' | null
   const consumed = Math.round(totals.calories || 0);
   const g = Math.round(goal || 0);
   const over = g > 0 && consumed > g;
   const remaining = Math.max(g - consumed, 0);
   const base = Math.max(g, consumed, 1);
 
-  const pC = (totals.protein||0)*4, cC = (totals.carbs||0)*4, fC = (totals.fat||0)*9;
-  const mSum = pC + cC + fC;
+  const macros = [
+    { key:"protein", label:"חלבון",   color:T.protein, grams:Math.round(totals.protein||0), cals:Math.round((totals.protein||0)*4) },
+    { key:"carbs",   label:"פחמימות", color:T.carbs,   grams:Math.round(totals.carbs||0),   cals:Math.round((totals.carbs||0)*4) },
+    { key:"fat",     label:"שומן",    color:T.fat,     grams:Math.round(totals.fat||0),     cals:Math.round((totals.fat||0)*9) },
+  ];
+  const mSum = macros.reduce((s,m)=>s+m.cals, 0);
+  const segs = mSum > 0 ? macros.map(m=>({ ...m, w:m.cals/mSum })) : [{ key:"none", color:T.rose, w:1 }];
   const consumedPct = Math.min(consumed / base, 1) * 100;
-  const segs = mSum > 0
-    ? [{ c:T.protein, w:pC/mSum }, { c:T.carbs, w:cC/mSum }, { c:T.fat, w:fC/mSum }]
-    : [{ c:T.rose, w:1 }];
+  const selected = macros.find(m=>m.key===sel);
+  const tap = (k)=>{ if (k && k!=="none") setSel(v=>v===k?null:k); };
 
   return (
     <div style={{ width:"100%", maxWidth:360, background:"#fff", borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
@@ -209,16 +214,30 @@ function Bars({ totals, goal }) {
         </span>
         <span style={{ fontSize:15, fontWeight:500, color:T.text3 }}>קק״ל</span>
       </p>
-      <div style={{ display:"flex", height:16, borderRadius:999, overflow:"hidden", background:T.border, marginTop:14 }}>
+
+      {/* פס המקטעים — כל צבע ניתן ללחיצה לפירוט מספרי */}
+      <div style={{ display:"flex", height:22, borderRadius:999, overflow:"hidden", background:T.border, marginTop:14 }}>
         {segs.map((s,i)=>(
-          <div key={i} style={{ width:`${consumedPct*s.w}%`, background:s.c }}/>
+          <button key={s.key||i} onClick={()=>tap(s.key)} aria-label={s.label||""}
+            style={{ width:`${consumedPct*s.w}%`, height:"100%", background:s.color, border:"none", padding:0,
+              cursor:(s.key&&s.key!=="none")?"pointer":"default",
+              opacity: sel && sel!==s.key ? .35 : 1, transition:"opacity .15s ease" }}/>
         ))}
         <div style={{ flex:1 }}/>
       </div>
-      <p style={{ margin:"10px 0 0", fontSize:12, color:T.text3 }}>
-        {over ? `מתוך ${g.toLocaleString("he-IL")} קק״ל · ${consumed.toLocaleString("he-IL")} נצרכו`
-              : `${consumed.toLocaleString("he-IL")} מתוך ${g.toLocaleString("he-IL")} קק״ל`}
-      </p>
+
+      {selected ? (
+        <p style={{ margin:"10px 0 0", fontSize:13, fontWeight:500, color:selected.color }}>
+          <span style={{ display:"inline-block", width:9, height:9, borderRadius:"50%", background:selected.color, marginLeft:6 }}/>
+          {selected.label}: {selected.grams.toLocaleString("he-IL")} ג׳ · {selected.cals.toLocaleString("he-IL")} קק״ל
+        </p>
+      ) : (
+        <p style={{ margin:"10px 0 0", fontSize:12, color:T.text3 }}>
+          {over ? `מתוך ${g.toLocaleString("he-IL")} קק״ל · ${consumed.toLocaleString("he-IL")} נצרכו`
+                : `${consumed.toLocaleString("he-IL")} מתוך ${g.toLocaleString("he-IL")} קק״ל`}
+          {mSum > 0 && <> · הקישי על צבע לפירוט</>}
+        </p>
+      )}
     </div>
   );
 }
