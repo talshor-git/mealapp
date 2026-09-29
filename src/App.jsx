@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.14";
+const APP_VERSION = "2.15";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -458,7 +458,7 @@ const normalize = (o)=>({
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
 });
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode }) {
   const isEdit = !!initialMeal;
   const isSavedEdit = !!onUpdateSaved;
   const [step, setStep] = useState(1);
@@ -476,10 +476,13 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [savedLib, setSavedLib] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [ingMode, setIngMode] = useState(
-    initialMeal && (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
-      ? "text" : "list"
-  );
+  const [ingMode, setIngMode] = useState(()=>{
+    if (initialMeal) {
+      return (initialMeal.freeText||"").trim() && !(initialMeal.ingredients||[]).some(i=>i.name.trim())
+        ? "text" : "list";
+    }
+    return defaultIngMode === "text" ? "text" : "list";
+  });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [exitConfirm, setExitConfirm] = useState(false);
@@ -1189,6 +1192,16 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
             </button>
           ))}
         </div>
+
+        <label style={{ ...lbl, marginTop:14 }}>ברירת מחדל להזנת רכיבים</label>
+        <div style={{ display:"flex", gap:10 }}>
+          {[["list","📋","רשימת רכיבים"],["text","✍️","טקסט חופשי"]].map(([v,e,l])=>(
+            <button key={v} onClick={()=>setUser({ ...user, ingredientMode:v })}
+              style={{ ...typeBtn, flex:1, ...((user.ingredientMode||"list")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
+              <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
@@ -1432,6 +1445,7 @@ export default function App() {
 
       {modal && (
         <AddMealModal savedMeals={data.savedMeals} initialType={modalType} aiConfig={aiConfig}
+          defaultIngMode={data.user.ingredientMode || "list"}
           onClose={()=>setModal(false)}
           onAddToDay={(m)=>{ addMealToDay(m); setModal(false); setTab("daily"); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
