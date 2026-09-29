@@ -57,7 +57,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.16";
+const APP_VERSION = "2.17";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -282,23 +282,20 @@ function MacroGoalInput({ color, label, value, onChange }) {
 
 function MacroLegend({ totals, user }) {
   const items = [
-    { label:"חלבון", color:T.protein, val:totals.protein, goal:user.goalProtein },
-    { label:"פחמימות", color:T.carbs, val:totals.carbs, goal:user.goalCarbs },
-    { label:"שומן", color:T.fat, val:totals.fat, goal:user.goalFat },
+    { label:"חלבון",   color:T.protein, val:totals.protein, goal:user.goalProtein },
+    { label:"פחמימות", color:T.carbs,   val:totals.carbs,   goal:user.goalCarbs },
+    { label:"שומן",    color:T.fat,     val:totals.fat,     goal:user.goalFat },
   ];
+  // שורה קומפקטית אחת — פחות מקום במסך
   return (
-    <div style={{ display:"flex", gap:8, width:"100%" }}>
+    <div style={{ display:"flex", justifyContent:"center", flexWrap:"wrap", gap:"2px 12px",
+      width:"100%", padding:"0 2px" }}>
       {items.map(it=>(
-        <div key={it.label} style={{ flex:1, background:"#fff", borderRadius:14, padding:"10px 8px",
-          boxShadow:T.shCard, textAlign:"center" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, marginBottom:4 }}>
-            <span style={{ width:8, height:8, borderRadius:"50%", background:it.color }}/>
-            <span style={{ fontSize:12, fontWeight:500, color:it.color }}>{it.label}</span>
-          </div>
-          <p style={{ margin:0, fontSize:14, fontWeight:500, color:T.ink }}>
-            {Math.round(it.val)}<span style={{ fontSize:11, color:T.text3 }}> / {it.goal||0} ג׳</span>
-          </p>
-        </div>
+        <span key={it.label} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:12 }}>
+          <span style={{ width:7, height:7, borderRadius:"50%", background:it.color }}/>
+          <span style={{ fontWeight:500, color:it.color }}>{it.label}</span>
+          <span style={{ fontWeight:500, color:T.ink }}>{Math.round(it.val)}<span style={{ color:T.text3, fontWeight:400 }}>/{it.goal||0}</span></span>
+        </span>
       ))}
     </div>
   );
