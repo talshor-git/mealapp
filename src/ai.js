@@ -8,7 +8,7 @@
 // ============================================================
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const REASONING_EFFORT = "high";
+const DEFAULT_REASONING_EFFORT = "high";
 
 const geminiUrl = (m, key) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
@@ -27,7 +27,7 @@ async function errorText(res, provider) {
   return detail || `שגיאה מהשרת (${provider} ${res.status})`;
 }
 
-async function callOpenRouter(prompt, key, model) {
+async function callOpenRouter(prompt, key, model, effort) {
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -39,8 +39,8 @@ async function callOpenRouter(prompt, key, model) {
       model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
-      // מאמץ חשיבה גבוה כברירת מחדל (נתמך במודלי reasoning, מתעלמים אחרים)
-      reasoning: { effort: REASONING_EFFORT },
+      // מאמץ חשיבה נבחר (נתמך במודלי reasoning, מתעלמים אחרים)
+      reasoning: { effort: effort || DEFAULT_REASONING_EFFORT },
     }),
   });
   if (!res.ok) throw new Error(await errorText(res, "OpenRouter"));
@@ -74,7 +74,7 @@ async function callGemini(prompt, key, model) {
   return text;
 }
 
-export async function sendToModel(prompt, apiKey, model) {
+export async function sendToModel(prompt, apiKey, model, effort) {
   const key = (apiKey || "").trim();
   const m = (model || "").trim();
   if (!m) throw new Error("לא נבחר מודל. בחרי מודל בעמוד הפרופיל.");
@@ -90,5 +90,5 @@ export async function sendToModel(prompt, apiKey, model) {
     throw new Error("המפתח הוא של OpenRouter, אבל המודל שנבחר הוא של Gemini. בחרי מודל של OpenRouter (למשל DeepSeek V4.1 Flash).");
   }
 
-  return openRouter ? callOpenRouter(prompt, key, m) : callGemini(prompt, key, m);
+  return openRouter ? callOpenRouter(prompt, key, m, effort) : callGemini(prompt, key, m);
 }

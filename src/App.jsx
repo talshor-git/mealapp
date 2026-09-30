@@ -84,7 +84,7 @@ const mealTypeByTime = (d = new Date()) => {
   return "dinner";
 };
 const MODEL_OPTIONS = [
-  { id:"deepseek/deepseek-v4.1-flash", label:"DeepSeek V4.1 Flash", provider:"OpenRouter" },
+  { id:"deepseek/deepseek-v4.1-flash", label:"DeepSeek V4.1 Flash", provider:"OpenRouter", reasoning:true },
   { id:"gemini-3.6-flash",       label:"Gemini 3.6 Flash",      provider:"Gemini" },
   { id:"gemini-3.5-flash",       label:"Gemini 3.5 Flash",      provider:"Gemini" },
   { id:"gemini-3.5-flash-lite",  label:"Gemini 3.5 Flash Lite", provider:"Gemini" },
@@ -92,11 +92,16 @@ const MODEL_OPTIONS = [
 ];
 const MODEL_IDS = MODEL_OPTIONS.map(m=>m.id);
 const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
+// רמות מאמץ חשיבה (effort) — נתמך במודלי reasoning (למשל DeepSeek)
+const EFFORT_OPTIONS = [["low",null,"נמוך"],["medium",null,"בינוני"],["high",null,"גבוה"]];
+const EFFORT_IDS = EFFORT_OPTIONS.map(o=>o[0]);
+const DEFAULT_EFFORT = "high";
+const modelHasEffort = (id)=> !!MODEL_OPTIONS.find(m=>m.id===id)?.reasoning;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.31";
+const APP_VERSION = "2.32";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -594,7 +599,7 @@ function parseTip(text) {
 
 // בדיקת טיפ במודל — מחזיר { tip, tipGood } בלבד
 async function fetchTip(meal, aiConfig){
-  const text = await sendToModel(buildTipPrompt(meal), aiConfig.apiKey, aiConfig.model);
+  const text = await sendToModel(buildTipPrompt(meal), aiConfig.apiKey, aiConfig.model, aiConfig.effort);
   return parseTip(text);
 }
 
@@ -712,7 +717,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     }
     setAiLoading(true); setAiError("");
     try {
-      const text = await sendToModel(buildPrompt(meal), aiConfig.apiKey, aiConfig.model);
+      const text = await sendToModel(buildPrompt(meal), aiConfig.apiKey, aiConfig.model, aiConfig.effort);
       const n = parseNutrition(text);
       setMeal(m=>applyNutrition(m, n, "ai")); setDirty(false); setStep(3);
     } catch (err) {
@@ -1372,6 +1377,9 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
   const [aiModel, setAiModel] = useState(
     aiConfig?.model && MODEL_IDS.includes(aiConfig.model) ? aiConfig.model : DEFAULT_MODEL
   );
+  const [aiEffort, setAiEffort] = useState(
+    aiConfig?.effort && EFFORT_IDS.includes(aiConfig.effort) ? aiConfig.effort : DEFAULT_EFFORT
+  );
   const [aiSaved, setAiSaved] = useState(false);
 
   // התאמת מודל אוטומטית כשסוג המפתח לא תואם לספק של המודל הנבחר
@@ -1387,7 +1395,7 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
   },[aiKey]);
 
   const saveAI = ()=>{
-    onSaveAIConfig({ apiKey: aiKey.trim(), model: aiModel });
+    onSaveAIConfig({ apiKey: aiKey.trim(), model: aiModel, effort: aiEffort });
     setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
   };
 
@@ -1446,10 +1454,14 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
             <option key={m.id} value={m.id}>{m.label} · {m.provider}</option>
           ))}
         </select>
-        {aiModel.includes("/") ? (
-          <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
-            מאמץ חשיבה: גבוה (High) — נשלח אוטומטית.
-          </p>
+        {modelHasEffort(aiModel) ? (
+          <>
+            <label style={{ ...lbl, marginTop:12, marginBottom:6 }}>מאמץ חשיבה</label>
+            <Segmented options={EFFORT_OPTIONS} value={aiEffort} onChange={setAiEffort}/>
+            <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
+              כמה מאמץ ישקיע המודל בחשיבה לפני המענה — גבוה מדויק יותר, נמוך מהיר יותר.
+            </p>
+          </>
         ) : (
           <p style={{ margin:"6px 0 0", fontSize:11, color:T.text3 }}>
             רשימת המודלים קבועה מראש — לא צריך לטעון אותה.
@@ -1558,6 +1570,10 @@ export default function App() {
     const ai = loadAIConfig();
     if (ai && (!ai.model || !MODEL_IDS.includes(ai.model))) {
       ai.model = DEFAULT_MODEL;
+      saveAIConfig(ai);
+    }
+    if (ai && (!ai.effort || !EFFORT_IDS.includes(ai.effort))) {
+      ai.effort = DEFAULT_EFFORT;
       saveAIConfig(ai);
     }
     setAiConfig(ai);
