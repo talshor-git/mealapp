@@ -13,20 +13,56 @@ import { sendToModel } from "./ai.js";
    מיושם לפי מסמך האפיון + מערכת העיצוב (קורל→ורוד→סגול)
    ============================================================ */
 
-// ---- Design tokens (from the design system) ----
-const T = {
-  coral: "#FF7E5F", rose: "#FF4E7E", violet: "#8B44E8",
-  gradPrimary: "linear-gradient(135deg,#FF7E5F 0%,#FF4E7E 48%,#8B44E8 100%)",
-  gradWarm: "linear-gradient(135deg,#FF9A5A,#FF5E7E)",
-  protein: "#0E9E76", carbs: "#F59700", fat: "#D6337E",
-  proteinL: "#E6F6EF", carbsL: "#FCF0DA", fatL: "#FBE4EF",
-  ink: "#1C1826", text2: "#4A4458", text3: "#9A93A8",
-  border: "#EEECF3", surface: "#FFFFFF", page: "#F7F7FB",
-  shCard: "0 6px 16px rgba(20,16,31,.05)",
-  shRaised: "0 8px 20px rgba(20,16,31,.06)",
-  shGlow: "0 14px 34px rgba(255,78,126,.34)",
-  shFab: "0 10px 22px rgba(255,78,126,.42)",
+// ---- Design tokens — שתי פלטות צבעים ----
+const PALETTES = {
+  // פלטת ברירת המחדל — ירוק וכתום (מדגימת תמונת המיתוג)
+  green: {
+    coral: "#3FA33F", rose: "#2E8B3D", violet: "#2E8B3D",
+    gradPrimary: "linear-gradient(135deg,#1E7B3C 0%,#3FA33F 48%,#8BC34A 100%)",
+    gradWarm: "linear-gradient(135deg,#F0B44E,#E2891F)",
+    protein: "#2E8B3D", carbs: "#DE8A1E", fat: "#7CB342",
+    proteinL: "#E6F3E4", carbsL: "#FBEEDA", fatL: "#EEF6E1",
+    ink: "#15251B", text2: "#3F5246", text3: "#8FA394",
+    border: "#E6EFE4", surface: "#FFFFFF", page: "#F6F9F4",
+    soft: "#EAF5E6", pillBg: "#EAF5E6", pillText: "#2E8B3D",
+    emptyFrom: "#F1F8EC", emptyTo: "#E8F4E0", emptyBorder: "#9CCB6B",
+    ringTrack: "#EAF1E6", navBg: "rgba(252,255,250,.92)", navIdle: "#A9BCA9",
+    overlayBg: "rgba(18,32,22,.42)", starOn: "#E8A33D", starOff: "#DCE8D8",
+    dangerGrad: "linear-gradient(135deg,#E05A4B,#C0392B)", dangerShadow: "0 14px 34px rgba(192,57,43,.3)",
+    shCard: "0 6px 16px rgba(20,40,25,.06)",
+    shRaised: "0 8px 20px rgba(20,40,25,.07)",
+    shWarm: "0 6px 14px rgba(46,139,61,.3)",
+    shGlow: "0 14px 34px rgba(46,139,61,.28)",
+    shFab: "0 10px 22px rgba(46,139,61,.36)",
+    shFrame: "0 0 60px rgba(46,139,61,.07)",
+    accent: "#2E8B3D", accentRing: "rgba(46,139,61,.14)",
+  },
+  // הפלטה הקודמת — קורל, ורוד וסגול
+  coral: {
+    coral: "#FF7E5F", rose: "#FF4E7E", violet: "#8B44E8",
+    gradPrimary: "linear-gradient(135deg,#FF7E5F 0%,#FF4E7E 48%,#8B44E8 100%)",
+    gradWarm: "linear-gradient(135deg,#FF9A5A,#FF5E7E)",
+    protein: "#0E9E76", carbs: "#F59700", fat: "#D6337E",
+    proteinL: "#E6F6EF", carbsL: "#FCF0DA", fatL: "#FBE4EF",
+    ink: "#1C1826", text2: "#4A4458", text3: "#9A93A8",
+    border: "#EEECF3", surface: "#FFFFFF", page: "#F7F7FB",
+    soft: "#FFF1F5", pillBg: "#F1ECFB", pillText: "#8B44E8",
+    emptyFrom: "#FFF6F2", emptyTo: "#FDF0F6", emptyBorder: "#FFB3A0",
+    ringTrack: "#F3F1F7", navBg: "rgba(255,255,255,.92)", navIdle: "#B7B1C4",
+    overlayBg: "rgba(28,24,38,.4)", starOn: "#F5B301", starOff: "#E4E0EA",
+    dangerGrad: "linear-gradient(135deg,#FF5E7E,#D6337E)", dangerShadow: "0 14px 34px rgba(214,51,126,.34)",
+    shCard: "0 6px 16px rgba(20,16,31,.05)",
+    shRaised: "0 8px 20px rgba(20,16,31,.06)",
+    shWarm: "0 6px 14px rgba(255,94,126,.32)",
+    shGlow: "0 14px 34px rgba(255,78,126,.34)",
+    shFab: "0 10px 22px rgba(255,78,126,.42)",
+    shFrame: "0 0 60px rgba(124,58,237,.08)",
+    accent: "#FF4E7E", accentRing: "rgba(255,78,126,.12)",
+  },
 };
+const PALETTE_LABELS = [["green","ירוק וכתום"],["coral","קורל וסגול"]];
+let PALETTE_NAME = "green";
+let T = PALETTES.green;
 
 const MEAL_TYPES = {
   breakfast: { label: "ארוחת בוקר", icon: Sunrise, emoji: "🍳" },
@@ -57,7 +93,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.18";
+const APP_VERSION = "2.19";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -121,9 +157,9 @@ function ConfirmDialog({ title, message, confirmLabel="אישור", cancelLabel=
           <p style={{ margin:"8px 0 0", fontSize:14, color:T.text2, lineHeight:1.6 }}>{message}</p>
         )}
         <div style={{ display:"flex", gap:10, marginTop:20 }}>
-          <button onClick={onCancel} style={{ ...softBtn, flex:1, background:"#F1ECFB", color:T.text2 }}>{cancelLabel}</button>
+          <button onClick={onCancel} style={{ ...softBtn, flex:1, background:T.pillBg, color:T.text2 }}>{cancelLabel}</button>
           <button onClick={onConfirm} style={{ ...primaryBtn, flex:1,
-            ...(danger ? { background:"linear-gradient(135deg,#FF5E7E,#D6337E)", boxShadow:"0 14px 34px rgba(214,51,126,.34)" } : {}) }}>
+            ...(danger ? { background:T.dangerGrad, boxShadow:T.dangerShadow } : {}) }}>
             {confirmLabel}
           </button>
         </div>
@@ -163,7 +199,7 @@ function Plate({ totals, goal }) {
         <circle cx="100" cy="100" r={R_OUT} fill="none" stroke="url(#plateGrad)" strokeWidth="14"
           strokeLinecap="round" strokeDasharray={`${outFill} ${C_OUT-outFill}`}/>
         {/* inner track */}
-        <circle cx="100" cy="100" r={R_IN} fill="none" stroke="#F3F1F7" strokeWidth="12"/>
+        <circle cx="100" cy="100" r={R_IN} fill="none" stroke={T.ringTrack} strokeWidth="12"/>
         {/* inner macro arcs */}
         {segs.map((s,i)=>{
           const el = (
@@ -264,7 +300,7 @@ function Stars({ value, size=18, onChange }) {
       {[1,2,3,4,5].map(i=>(
         <Star key={i} size={size}
           onClick={onChange ? ()=>onChange(i) : undefined}
-          style={{ cursor:onChange?"pointer":"default", color:i<=full?"#F5B301":"#E4E0EA", fill:i<=full?"#F5B301":"none" }}/>
+          style={{ cursor:onChange?"pointer":"default", color:i<=full?T.starOn:T.starOff, fill:i<=full?T.starOn:"none" }}/>
       ))}
     </div>
   );
@@ -317,7 +353,7 @@ function Companion({ character, ratio, name }) {
     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
       <div style={{ width:52, height:52, borderRadius:"50%", background:T.gradWarm,
         display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0,
-        boxShadow:"0 6px 14px rgba(255,94,126,.3)" }}>{emoji}</div>
+        boxShadow:T.shWarm }}>{emoji}</div>
       <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:16,
         borderTopRightRadius:4, padding:"10px 14px", boxShadow:T.shCard, flex:1 }}>
         <span style={{ fontSize:14, color:T.text2 }}>{mood} {msg}</span>
@@ -337,7 +373,7 @@ function MealCard({ meal, onDelete, onEdit, onClick }) {
       display:"flex", alignItems:"center", gap:13, marginBottom:11, cursor:onClick?"pointer":"default" }}>
       <div style={{ width:46, height:46, borderRadius:15, background:T.gradWarm, display:"flex",
         alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0,
-        boxShadow:"0 6px 14px rgba(255,94,126,.32)" }}>{meal.emoji || type.emoji}</div>
+        boxShadow:T.shWarm }}>{meal.emoji || type.emoji}</div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <p style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink }}>{meal.name}</p>
@@ -755,7 +791,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 </p>
               )}
               {aiError && (
-                <p style={{ margin:"0 0 12px", fontSize:12, color:T.fat, background:"#FBE4EF",
+                <p style={{ margin:"0 0 12px", fontSize:12, color:T.fat, background:T.fatL,
                   borderRadius:10, padding:"8px 12px", textAlign:"center" }}>{aiError}</p>
               )}
 
@@ -831,7 +867,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         {step===3 && meal.nutrition && (
           <div>
             {savedReminder && (
-              <div style={{ background:"#FFF9F2", borderRight:`4px solid ${T.carbs}`, borderRadius:"0 12px 12px 0",
+              <div style={{ background:T.carbsL, borderRight:`4px solid ${T.carbs}`, borderRadius:"0 12px 12px 0",
                 padding:"10px 14px", fontSize:13, color:T.text2, marginBottom:14 }}>
                 שינית רכיבים — כדאי לוודא שהערכים מהאריזה עדיין מתאימים.
               </div>
@@ -987,7 +1023,7 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {list.length>0 && <span style={{ fontSize:13, color:T.text3 }}>{Math.round(sub)} קק״ל</span>}
                 <button onClick={()=>onAdd(t)} aria-label={`הוספת ${MEAL_TYPES[t].label}`}
-                  style={{ ...iconBtn, background:"#FFF1F5" }}>
+                  style={{ ...iconBtn, background:T.soft }}>
                   <Plus size={16} color={T.rose}/>
                 </button>
               </div>
@@ -1219,6 +1255,18 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
             </button>
           ))}
         </div>
+
+        <label style={{ ...lbl, marginTop:14 }}>ערכת צבעים</label>
+        <div style={{ display:"flex", gap:10 }}>
+          {PALETTE_LABELS.map(([v,label])=>(
+            <button key={v} onClick={()=>setUser({ ...user, palette:v })}
+              style={{ ...typeBtn, flex:1, ...((user.palette||"green")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
+              <span style={{ width:34, height:16, borderRadius:999, background:PALETTES[v].gradPrimary,
+                border:((user.palette||"green")===v) ? "1.5px solid rgba(255,255,255,.65)" : `1.5px solid ${T.border}` }}/>
+              <span style={{ fontSize:12 }}>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
@@ -1360,11 +1408,14 @@ export default function App() {
   // persist on change
   useEffect(()=>{ if(ready && data) saveData(data); },[data,ready]);
 
+  // החלת ערכת הצבעים הנבחרת (ברירת מחדל: ירוק וכתום)
+  applyPalette((data && data.user && data.user.palette) || "green");
+
   if(!ready) return <div style={{ ...frame, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", color:T.text3 }}>טוען…</div>;
 
   // onboarding
   if(!data.user) return (
-    <div style={frame}>
+    <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
       <Onboarding onDone={(user)=>setData(d=>({ ...d, user }))}/>
     </div>
   );
@@ -1437,7 +1488,7 @@ export default function App() {
   const openAdd = (type)=>{ setModalType(type); setModal(true); };
 
   return (
-    <div style={frame}>
+    <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
       <div style={{ background:T.page, animation:"rise .3s ease" }}>
         {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user}
           onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={setDetailsMeal} onEditMeal={setEditMeal}/>}
@@ -1500,77 +1551,93 @@ function NavItem({ icon:Icon, label, active, onClick }) {
   return (
     <button onClick={onClick} style={{ background:"none", border:"none", cursor:"pointer",
       display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:4 }}>
-      <Icon size={23} color={active?T.violet:"#B7B1C4"} strokeWidth={active?2.4:2}/>
-      <span style={{ fontSize:10, fontWeight:active?500:400, color:active?T.violet:"#B7B1C4" }}>{label}</span>
+      <Icon size={23} color={active?T.violet:T.navIdle} strokeWidth={active?2.4:2}/>
+      <span style={{ fontSize:10, fontWeight:active?500:400, color:active?T.violet:T.navIdle }}>{label}</span>
     </button>
   );
 }
 
 // ============================================================
-//  shared style objects
+//  shared style objects — נבנים מחדש בכל החלפת פלטה
 // ============================================================
-const frame = { direction:"rtl", fontFamily:"'Heebo',system-ui,sans-serif", width:"100%",
-  maxWidth:480, minHeight:"100dvh", margin:"0 auto", background:T.page,
-  position:"relative", overflowX:"hidden",
-  boxShadow:"0 0 60px rgba(124,58,237,.08)" };
+let frame, navBar, fab, overlay, sheet, closeBtn, lbl, input,
+    primaryBtn, softBtn, ghostBtn, pill, linkBtn, typeBtn, emptyState,
+    card2, savedRow, stepChip, segBtn, segActive, weekRow, monthCell;
 
-const navBar = { position:"fixed", bottom:0, left:0, right:0, margin:"0 auto", maxWidth:480, height:74,
-  background:"rgba(255,255,255,.92)", backdropFilter:"blur(12px)", borderTop:`1px solid ${T.border}`,
-  display:"flex", alignItems:"center", justifyContent:"space-around", padding:"0 20px", zIndex:40 };
-
-const fab = { width:56, height:56, borderRadius:20, background:T.gradPrimary, border:"4px solid "+T.page,
-  display:"flex", alignItems:"center", justifyContent:"center", marginTop:-26, cursor:"pointer",
-  boxShadow:T.shFab };
-
-const overlay = { position:"fixed", inset:0, background:"rgba(28,24,38,.4)", backdropFilter:"blur(3px)",
-  display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:50,
-  paddingTop:"max(env(safe-area-inset-top, 0px), 12px)" };
-const sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"100%", borderRadius:"28px 28px 0 0",
-  padding:"20px 18px calc(22px + env(safe-area-inset-bottom, 0px))", display:"flex", flexDirection:"column",
-  animation:"rise .28s ease" };
-
-// כפתור סגירה גדול וברור — יעד מגע נוח במובייל
-const closeBtn = { width:44, height:44, borderRadius:"50%", border:"none", background:"#F1ECFB",
-  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-  cursor:"pointer", touchAction:"manipulation" };
-
-const lbl = { display:"block", fontSize:13, fontWeight:500, color:T.text2, marginBottom:7 };
-const input = { width:"100%", fontSize:15, padding:"11px 14px", border:`1.5px solid ${T.border}`,
-  borderRadius:12, background:"#fff", outline:"none", textAlign:"right", color:T.ink };
-
-const primaryBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8,
-  border:"none", fontSize:15, fontWeight:500, padding:"13px 20px", borderRadius:999,
-  background:T.gradPrimary, color:"#fff", cursor:"pointer", boxShadow:T.shGlow };
-const softBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7,
-  border:"none", fontSize:15, fontWeight:500, padding:"13px 20px", borderRadius:999,
-  background:"#FFF1F5", color:T.rose, cursor:"pointer" };
-const ghostBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7,
-  fontSize:14, fontWeight:500, padding:"11px 18px", borderRadius:999,
-  background:"transparent", color:T.violet, border:`1.5px solid ${T.violet}`, cursor:"pointer" };
-const pill = { display:"inline-flex", alignItems:"center", gap:6, border:"none", fontSize:13,
-  fontWeight:500, padding:"9px 14px", borderRadius:999, background:"#F1ECFB", color:T.violet, cursor:"pointer" };
-const linkBtn = { background:"none", border:"none", color:T.violet, fontSize:13, fontWeight:500,
-  cursor:"pointer", padding:0 };
-
-const typeBtn = { display:"flex", flexDirection:"column", alignItems:"center", gap:5, padding:"12px 6px",
-  border:`1.5px solid ${T.border}`, borderRadius:14, background:"#fff", color:T.text2, cursor:"pointer" };
-
-const emptyState = { width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-  background:"linear-gradient(135deg,#FFF6F2,#FDF0F6)", border:`1.5px dashed #FFB3A0`,
-  borderRadius:20, padding:15, color:T.fat, fontSize:14, fontWeight:500, cursor:"pointer" };
-
-const card2 = { background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard };
 const miniBadge = (bg)=>({ width:30, height:30, borderRadius:10, background:bg, display:"flex", alignItems:"center", justifyContent:"center" });
-const savedRow = { width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 8px",
-  background:"none", border:"none", cursor:"pointer", borderRadius:10 };
-const stepChip = { width:20, height:20, borderRadius:"50%", background:T.gradPrimary, color:"#fff",
-  fontSize:12, fontWeight:500, display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 };
 
-const segBtn = { flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${T.border}`,
-  background:"#fff", color:T.text2, fontSize:14, fontWeight:500, cursor:"pointer" };
-const segActive = { background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow };
+function buildStyles(){
+  frame = { direction:"rtl", fontFamily:"'Heebo',system-ui,sans-serif", width:"100%",
+    maxWidth:480, minHeight:"100dvh", margin:"0 auto", background:T.page,
+    position:"relative", overflowX:"hidden", boxShadow:T.shFrame };
 
-const weekRow = { display:"flex", alignItems:"center", gap:12, width:"100%", background:"#fff",
-  border:`1px solid ${T.border}`, borderRadius:16, padding:"12px 14px", cursor:"pointer", boxShadow:T.shCard };
-const monthCell = { display:"flex", flexDirection:"column", alignItems:"center", background:"#fff",
-  border:`1px solid ${T.border}`, borderRadius:12, padding:"6px 2px", cursor:"pointer", minHeight:52 };
+  navBar = { position:"fixed", bottom:0, left:0, right:0, margin:"0 auto", maxWidth:480, height:74,
+    background:T.navBg, backdropFilter:"blur(12px)", borderTop:`1px solid ${T.border}`,
+    display:"flex", alignItems:"center", justifyContent:"space-around", padding:"0 20px", zIndex:40 };
+
+  fab = { width:56, height:56, borderRadius:20, background:T.gradPrimary, border:"4px solid "+T.page,
+    display:"flex", alignItems:"center", justifyContent:"center", marginTop:-26, cursor:"pointer",
+    boxShadow:T.shFab };
+
+  overlay = { position:"fixed", inset:0, background:T.overlayBg, backdropFilter:"blur(3px)",
+    display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:50,
+    paddingTop:"max(env(safe-area-inset-top, 0px), 12px)" };
+  sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"100%", borderRadius:"28px 28px 0 0",
+    padding:"20px 18px calc(22px + env(safe-area-inset-bottom, 0px))", display:"flex", flexDirection:"column",
+    animation:"rise .28s ease" };
+
+  // כפתור סגירה גדול וברור — יעד מגע נוח במובייל
+  closeBtn = { width:44, height:44, borderRadius:"50%", border:"none", background:T.pillBg,
+    display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+    cursor:"pointer", touchAction:"manipulation" };
+
+  lbl = { display:"block", fontSize:13, fontWeight:500, color:T.text2, marginBottom:7 };
+  input = { width:"100%", fontSize:15, padding:"11px 14px", border:`1.5px solid ${T.border}`,
+    borderRadius:12, background:"#fff", outline:"none", textAlign:"right", color:T.ink };
+
+  primaryBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8,
+    border:"none", fontSize:15, fontWeight:500, padding:"13px 20px", borderRadius:999,
+    background:T.gradPrimary, color:"#fff", cursor:"pointer", boxShadow:T.shGlow };
+  softBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7,
+    border:"none", fontSize:15, fontWeight:500, padding:"13px 20px", borderRadius:999,
+    background:T.soft, color:T.rose, cursor:"pointer" };
+  ghostBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7,
+    fontSize:14, fontWeight:500, padding:"11px 18px", borderRadius:999,
+    background:"transparent", color:T.violet, border:`1.5px solid ${T.violet}`, cursor:"pointer" };
+  pill = { display:"inline-flex", alignItems:"center", gap:6, border:"none", fontSize:13,
+    fontWeight:500, padding:"9px 14px", borderRadius:999, background:T.pillBg, color:T.pillText, cursor:"pointer" };
+  linkBtn = { background:"none", border:"none", color:T.violet, fontSize:13, fontWeight:500,
+    cursor:"pointer", padding:0 };
+
+  typeBtn = { display:"flex", flexDirection:"column", alignItems:"center", gap:5, padding:"12px 6px",
+    border:`1.5px solid ${T.border}`, borderRadius:14, background:"#fff", color:T.text2, cursor:"pointer" };
+
+  emptyState = { width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+    background:`linear-gradient(135deg,${T.emptyFrom},${T.emptyTo})`, border:`1.5px dashed ${T.emptyBorder}`,
+    borderRadius:20, padding:15, color:T.fat, fontSize:14, fontWeight:500, cursor:"pointer" };
+
+  card2 = { background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard };
+  savedRow = { width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 8px",
+    background:"none", border:"none", cursor:"pointer", borderRadius:10 };
+  stepChip = { width:20, height:20, borderRadius:"50%", background:T.gradPrimary, color:"#fff",
+    fontSize:12, fontWeight:500, display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 };
+
+  segBtn = { flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${T.border}`,
+    background:"#fff", color:T.text2, fontSize:14, fontWeight:500, cursor:"pointer" };
+  segActive = { background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow };
+
+  weekRow = { display:"flex", alignItems:"center", gap:12, width:"100%", background:"#fff",
+    border:`1px solid ${T.border}`, borderRadius:16, padding:"12px 14px", cursor:"pointer", boxShadow:T.shCard };
+  monthCell = { display:"flex", flexDirection:"column", alignItems:"center", background:"#fff",
+    border:`1px solid ${T.border}`, borderRadius:12, padding:"6px 2px", cursor:"pointer", minHeight:52 };
+}
+buildStyles();
+
+// החלפת פלטה בזמן ריצה — מעדכן את T ובונה מחדש את הסגנונות
+function applyPalette(name){
+  const key = PALETTES[name] ? name : "green";
+  if (key === PALETTE_NAME) return;
+  PALETTE_NAME = key;
+  T = PALETTES[key];
+  buildStyles();
+}
