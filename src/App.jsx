@@ -96,7 +96,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.30";
+const APP_VERSION = "2.31";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -394,10 +394,25 @@ const iconBtn = { background:"transparent", border:"none", cursor:"pointer", pad
 // ============================================================
 //  MEAL DETAILS MODAL — view what was entered
 // ============================================================
-function MealDetailsModal({ meal, onClose, onEdit }) {
+function MealDetailsModal({ meal, onClose, onEdit, aiConfig, onTipUpdate }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
+  const [tipLoading, setTipLoading] = useState(false);
+  const [tipError, setTipError] = useState("");
+  const tipChecked = isTipChecked(meal);
+  const checkTip = async ()=>{
+    if (!aiConfig?.apiKey) { setTipError("לא הוגדר מפתח API — הוסיפי אותו בעמוד הפרופיל."); return; }
+    setTipLoading(true); setTipError("");
+    try {
+      const t = await fetchTip(meal, aiConfig);
+      if (onTipUpdate) onTipUpdate(t);
+    } catch (err) {
+      setTipError(err?.message || "השליחה למודל נכשלה, נסי שוב.");
+    } finally {
+      setTipLoading(false);
+    }
+  };
   return (
     <div style={overlay} onClick={onClose} onTouchMove={blockBackdropScroll}>
       <div style={sheet} onClick={e=>e.stopPropagation()}>
@@ -429,7 +444,27 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
             </div>
           </div>
 
-          {(meal.tip||"").trim() && (
+          {meal.source==="manual" && !tipChecked ? (
+            <div style={{ ...card2, marginBottom:16, background:T.carbsL, border:`1px solid ${T.carbs}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>🤖</span>
+                <span style={{ fontSize:13, color:T.text2, flex:1 }}>לא נבדק על ידי מודל — הערכים הוזנו ידנית מהאריזה.</span>
+              </div>
+              {(meal.tip||"").trim() && (
+                <p style={{ margin:"8px 0 0", fontSize:12.5, color:T.text3, lineHeight:1.5 }}>טיפ ראשוני: {meal.tip}</p>
+              )}
+              {tipError && (
+                <p style={{ margin:"8px 0 0", fontSize:12, color:T.fat, background:T.fatL,
+                  borderRadius:10, padding:"8px 12px", textAlign:"center" }}>{tipError}</p>
+              )}
+              <button onClick={checkTip} disabled={tipLoading}
+                style={{ ...softBtn, width:"100%", marginTop:10, opacity:tipLoading?.6:1,
+                  cursor:tipLoading?"wait":"pointer" }}>
+                {tipLoading ? <Loader2 size={16} className="spin"/> : <Sparkles size={16}/>}
+                {tipLoading ? "בודקת במודל…" : "בדיקת טיפ במודל"}
+              </button>
+            </div>
+          ) : (meal.tip||"").trim() && (
             <div style={{ ...card2, marginBottom:16, display:"flex", alignItems:"center", gap:10,
               background: meal.tipGood ? T.proteinL : T.carbsL,
               border:`1px solid ${meal.tipGood ? T.protein : T.carbs}` }}>
@@ -524,6 +559,45 @@ function localTip(n) {
   return { tip:"יישר כוח! ארוחה מאוזנת.", tipGood:true };
 }
 
+// האם הטיפ נבדק על ידי מודל (ארוחה שחושבה ב-AI, או טיפ שנבדק ידנית במודל)
+const isTipChecked = (m)=> m?.source === "ai" || m?.tipChecked === true;
+
+// פרומפט לבדיקת טיפ בלבד — אותם פרמטרים של הבדיקה הרגילה, בלי לחשב מחדש את הערכים
+function buildTipPrompt(meal) {
+  const list = (meal.freeText||"").trim()
+    ? meal.freeText.trim()
+    : (meal.ingredients||[]).filter(i=>(i.name||"").trim())
+        .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
+  const typeLabel = (MEAL_TYPES[meal.type] || MEAL_TYPES.snack).label;
+  const n = meal.nutrition || {};
+  return `אתה מומחה תזונה. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
+{"tip": "הערה קצרה בעברית, שורה אחת בלבד", "tipGood": true/false}
+tip: טיפ מעשי אחד ויחיד לשיפור הבריאותיות של הארוחה — התחשב בערכי התזונה הנתונים, ביחס בין השומן, הפחמימות והחלבון, ובסוג הארוחה שצוין. נסח בעברית, קצר במיוחד (עד כ-60 תווים, שורה אחת בלבד, בלי מעבר שורה).
+אם הארוחה מאוזנת ובריאה ממילא — החזר tipGood=true ו-tip קצר של עידוד בלבד (למשל "יישר כוח! ארוחה מאוזנת"). אחרת tipGood=false.
+חשוב: החזר רק את הטיפ — אל תחזיר ואל תשנה את הערכים התזונתיים.
+סוג הארוחה: ${typeLabel}
+רכיבים: ${list}
+ערכים ידועים: קלוריות ${Math.round(n.calories||0)}, חלבון ${Math.round(n.protein||0)} ג׳, פחמימות ${Math.round(n.carbs||0)} ג׳, שומן ${Math.round(n.fat||0)} ג׳`;
+}
+
+function parseTip(text) {
+  const clean = (text||"").replace(/```json|```/g,"").trim();
+  const cleanTip = (t)=> typeof t === "string" ? t.trim().replace(/\s+/g," ").slice(0,80) : "";
+  try {
+    const o = JSON.parse(clean);
+    return { tip: cleanTip(o.tip), tipGood: o.tipGood === true || o.tipGood === "true" };
+  } catch {
+    const m = clean.match(/tip["']?\s*[:=]\s*"([^"\n}]+)"/i) || clean.match(/הערה[^:"}]*["']?\s*[:=]\s*"([^"\n}]+)"/i);
+    return { tip: m ? m[1].trim().replace(/\s+/g," ").slice(0,80) : "", tipGood: /tipGood["']?\s*[:=]\s*true/i.test(clean) };
+  }
+}
+
+// בדיקת טיפ במודל — מחזיר { tip, tipGood } בלבד
+async function fetchTip(meal, aiConfig){
+  const text = await sendToModel(buildTipPrompt(meal), aiConfig.apiKey, aiConfig.model);
+  return parseTip(text);
+}
+
 function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode }) {
   const isEdit = !!initialMeal;
   const isSavedEdit = !!onUpdateSaved;
@@ -551,6 +625,8 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   });
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [tipLoading, setTipLoading] = useState(false);
+  const [tipError, setTipError] = useState("");
   const [exitConfirm, setExitConfirm] = useState(false);
 
   // האם המשתמשת שינתה משהו מאז פתיחת החלון (לצורך וידוא ביציאה)
@@ -596,6 +672,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
       name: (m.name||"").trim() ? m.name : (n.name || fallbackName(m)),
       tip: aiTip || (local ? local.tip : ""),
       tipGood: aiTip ? !!n.tipGood : (local ? local.tipGood : false),
+      tipChecked: source === "ai",
       source,
     };
   };
@@ -648,6 +725,20 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const submitManual = ()=>{
     const n = normalize(manual);
     setMeal(m=>applyNutrition(m, n, "manual")); setDirty(false); setStep(3);
+  };
+
+  // בדיקת טיפ בלבד במודל (למשל אחרי הזנה ידנית מהאריזה) — הערכים נשמרים כפי שהם
+  const checkTip = async ()=>{
+    if (!aiConfig?.apiKey) { setTipError("לא הוגדר מפתח API — הוסיפי אותו בעמוד הפרופיל."); return; }
+    setTipLoading(true); setTipError("");
+    try {
+      const t = await fetchTip(meal, aiConfig);
+      setMeal(m=>({ ...m, tip:t.tip, tipGood:t.tipGood, tipChecked:true }));
+    } catch (err) {
+      setTipError(err?.message || "השליחה למודל נכשלה, נסי שוב.");
+    } finally {
+      setTipLoading(false);
+    }
   };
 
   const loadSaved = (sm)=>{
@@ -910,6 +1001,33 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 <Stars value={meal.nutrition.health}/>
               </div>
             </div>
+
+            {meal.source==="manual" && !isTipChecked(meal) && (
+              <div style={{ ...card2, marginBottom:16, background:T.carbsL, border:`1px solid ${T.carbs}` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:18, flexShrink:0 }}>🤖</span>
+                  <span style={{ fontSize:13, color:T.text2, flex:1 }}>הערכים הוזנו ידנית מהאריזה — הטיפ טרם נבדק על ידי מודל.</span>
+                </div>
+                {tipError && (
+                  <p style={{ margin:"8px 0 0", fontSize:12, color:T.fat, background:T.fatL,
+                    borderRadius:10, padding:"8px 12px", textAlign:"center" }}>{tipError}</p>
+                )}
+                <button onClick={checkTip} disabled={tipLoading}
+                  style={{ ...softBtn, width:"100%", marginTop:10, opacity:tipLoading?.6:1,
+                    cursor:tipLoading?"wait":"pointer" }}>
+                  {tipLoading ? <Loader2 size={16} className="spin"/> : <Sparkles size={16}/>}
+                  {tipLoading ? "בודקת במודל…" : "בדיקת טיפ במודל"}
+                </button>
+              </div>
+            )}
+            {meal.source==="manual" && isTipChecked(meal) && (meal.tip||"").trim() && (
+              <div style={{ ...card2, marginBottom:16, display:"flex", alignItems:"center", gap:10,
+                background: meal.tipGood ? T.proteinL : T.carbsL,
+                border:`1px solid ${meal.tipGood ? T.protein : T.carbs}` }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{meal.tipGood ? "🎉" : "💡"}</span>
+                <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:500, color:T.ink }}>{meal.tip}</span>
+              </div>
+            )}
 
             <label style={lbl}>שם הארוחה</label>
             <input style={input} value={meal.name} onChange={e=>setField("name",e.target.value)}
@@ -1210,6 +1328,10 @@ function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete, onView }) {
               whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
               {Math.round(sm.nutrition?.calories||0)} קק״ל · {MEAL_TYPES[sm.type]?.label}
             </p>
+            {sm.source==="manual" && !isTipChecked(sm) && (
+              <span style={{ display:"inline-block", marginTop:4, fontSize:10.5, fontWeight:500,
+                color:T.carbs, background:T.carbsL, borderRadius:999, padding:"2px 8px" }}>לא נבדק על ידי מודל</span>
+            )}
           </div>
           <button onClick={(e)=>{ e.stopPropagation(); onQuickAdd(sm); }} style={{ ...pill, padding:"7px 12px", flexShrink:0 }}><Plus size={14}/> הוספה</button>
           <button onClick={(e)=>{ e.stopPropagation(); onEdit(sm); }} aria-label="עריכה" style={{ ...iconBtn, flexShrink:0 }}><Pencil size={16} color={T.text3}/></button>
@@ -1476,7 +1598,7 @@ export default function App() {
   const saveMeal = (meal)=> setData(d=>{
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||mealType(meal.type).emoji,
       type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
-      nutrition:meal.nutrition, tip:meal.tip, tipGood:meal.tipGood, source:meal.source };
+      nutrition:meal.nutrition, tip:meal.tip, tipGood:meal.tipGood, tipChecked:meal.tipChecked, source:meal.source };
     const idx=d.savedMeals.findIndex(s=>s.name===meal.name);
     if (idx===-1) return { ...d, savedMeals:[sm,...d.savedMeals] };
     return { ...d, savedMeals:d.savedMeals.map((s,i)=> i===idx ? { ...sm, id:s.id } : s) };
@@ -1565,7 +1687,13 @@ export default function App() {
       )}
 
       {detailsMeal && (
-        <MealDetailsModal meal={detailsMeal} onClose={()=>setDetailsMeal(null)}
+        <MealDetailsModal meal={detailsMeal} aiConfig={aiConfig}
+          onClose={()=>setDetailsMeal(null)}
+          onTipUpdate={(t)=>{
+            const updated = { ...detailsMeal, tip:t.tip, tipGood:t.tipGood, tipChecked:true };
+            setDetailsMeal(updated);
+            (detailsSaved ? updateSavedMeal : updateMeal)(updated);
+          }}
           onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); (detailsSaved ? setEditSavedMeal : setEditMeal)(m); }}/>
       )}
 
