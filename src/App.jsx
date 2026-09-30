@@ -28,6 +28,7 @@ const PALETTES = {
     emptyFrom: "#F1F8EC", emptyTo: "#E8F4E0", emptyBorder: "#9CCB6B",
     ringTrack: "#EAF1E6", navBg: "rgba(252,255,250,.92)", navIdle: "#A9BCA9",
     overlayBg: "rgba(18,32,22,.42)", starOn: "#E8A33D", starOff: "#DCE8D8",
+    over: "#E2891F",
     dangerGrad: "linear-gradient(135deg,#E05A4B,#C0392B)", dangerShadow: "0 14px 34px rgba(192,57,43,.3)",
     shCard: "0 6px 16px rgba(20,40,25,.06)",
     shRaised: "0 8px 20px rgba(20,40,25,.07)",
@@ -50,6 +51,7 @@ const PALETTES = {
     emptyFrom: "#FFF6F2", emptyTo: "#FDF0F6", emptyBorder: "#FFB3A0",
     ringTrack: "#F3F1F7", navBg: "rgba(255,255,255,.92)", navIdle: "#B7B1C4",
     overlayBg: "rgba(28,24,38,.4)", starOn: "#F5B301", starOff: "#E4E0EA",
+    over: "#D6337E",
     dangerGrad: "linear-gradient(135deg,#FF5E7E,#D6337E)", dangerShadow: "0 14px 34px rgba(214,51,126,.34)",
     shCard: "0 6px 16px rgba(20,16,31,.05)",
     shRaised: "0 8px 20px rgba(20,16,31,.06)",
@@ -94,7 +96,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.27";
+const APP_VERSION = "2.28";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -246,7 +248,7 @@ function Bars({ totals, goal }) {
     <div style={{ width:"100%", maxWidth:360, background:"#fff", borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
       <p style={{ margin:0, fontSize:13, color:T.text3 }}>{over ? "מעל היעד" : "נותרו היום"}</p>
       <p style={{ margin:"4px 0 0", display:"flex", alignItems:"baseline", gap:6 }}>
-        <span style={{ fontSize:42, fontWeight:700, color:over?T.fat:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
+        <span style={{ fontSize:42, fontWeight:700, color:over?T.over:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
           {(over ? consumed-g : remaining).toLocaleString("he-IL")}
         </span>
         <span style={{ fontSize:15, fontWeight:500, color:T.text3 }}>קק״ל</span>
@@ -286,7 +288,7 @@ function RemainingCaption({ totals, goal }) {
   const remaining = g - consumed;
   const over = g > 0 && remaining < 0;
   return (
-    <p style={{ margin:0, fontSize:14, fontWeight:500, color: over ? T.fat : T.text2 }}>
+    <p style={{ margin:0, fontSize:14, fontWeight:500, color: over ? T.over : T.text2 }}>
       {over
         ? `עברת את היעד ב-${Math.abs(remaining).toLocaleString("he-IL")} קק״ל`
         : `נותרו לך ${Math.max(remaining,0).toLocaleString("he-IL")} קק״ל היום`}
