@@ -94,7 +94,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.26";
+const APP_VERSION = "2.27";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -334,30 +334,6 @@ function MacroLegend({ totals, user }) {
             <span style={{ fontWeight:500, color:T.ink }}>{Math.round(it.val)}<span style={{ color:T.text3, fontWeight:400 }}>/{it.goal||0}</span></span>
           </span>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-//  COMPANION — chef with a mood-based message
-// ============================================================
-function Companion({ character, ratio, name }) {
-  const emoji = character === "chef_f" ? "👩‍🍳" : "👨‍🍳";
-  let mood = "😊", msg = `יום נהדר להתחיל בו, ${name}!`;
-  if (ratio === 0) { mood="🙂"; msg="הצלחת עוד ריקה — מה נאכל היום?"; }
-  else if (ratio < 0.5) { mood="🙂"; msg="יש עוד הרבה מקום בצלחת. קדימה!"; }
-  else if (ratio < 0.85) { mood="😊"; msg="אתה בכיוון מצוין, ממשיכים ככה."; }
-  else if (ratio <= 1.05) { mood="😄"; msg="כמעט ביעד — יופי של יום!"; }
-  else { mood="😅"; msg="עברנו קצת את היעד. מחר יום חדש 💛"; }
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-      <div style={{ width:52, height:52, borderRadius:"50%", background:T.gradWarm,
-        display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0,
-        boxShadow:T.shWarm }}>{emoji}</div>
-      <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:16,
-        borderTopRightRadius:4, padding:"10px 14px", boxShadow:T.shCard, flex:1 }}>
-        <span style={{ fontSize:14, color:T.text2 }}>{mood} {msg}</span>
       </div>
     </div>
   );
@@ -1037,7 +1013,6 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
   const totals = dayTotals(day);
-  const ratio = user.goal ? totals.calories/user.goal : 0;
   const meals = day?.meals || [];
 
   return (
@@ -1062,11 +1037,6 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
         )}
         <MacroLegend totals={totals} user={user}/>
         <Stars value={totals.health}/>
-      </div>
-
-      {/* companion */}
-      <div style={{ marginBottom:18 }}>
-        <Companion character={user.character} ratio={ratio} name={user.name}/>
       </div>
 
       {/* meals by type */}
@@ -1312,11 +1282,7 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
       <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>העדפות</p>
 
-        <label style={{ ...lbl, marginBottom:6 }}>דמות מלווה</label>
-        <Segmented options={[["chef_m","👨‍🍳","שף"],["chef_f","👩‍🍳","שפית"]]}
-          value={user.character} onChange={v=>setUser({ ...user, character:v })}/>
-
-        <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>תצוגת סיכום יומי</label>
+        <label style={{ ...lbl, marginBottom:6 }}>תצוגת סיכום יומי</label>
         <Segmented options={[["ring","🍩","גלגל"],["bars","📊","פסים"]]}
           value={user.chartStyle||"ring"} onChange={v=>setUser({ ...user, chartStyle:v })}/>
 
