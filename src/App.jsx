@@ -101,7 +101,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.33";
+const APP_VERSION = "2.34";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -516,8 +516,9 @@ function buildPrompt(meal) {
         .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
   const typeLabel = (MEAL_TYPES[meal.type] || MEAL_TYPES.snack).label;
   return `אתה מחשבון תזונה מדויק ומומחה לתזונה. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
-{"name": "שם קצר ומושך לארוחה בעברית (2-4 מילים), לפי ההקשר של הרכיבים", "calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5, "tip": "הערה קצרה בעברית, שורה אחת בלבד", "tipGood": true/false}
+{"name": "שם קצר ומושך לארוחה בעברית (2-4 מילים), לפי ההקשר של הרכיבים", "emoji": "אמוג׳י בודד (תו אחד) שמתאים לארוחה", "calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5, "tip": "הערה קצרה בעברית, שורה אחת בלבד", "tipGood": true/false}
 כאשר name הוא שם הארוחה, ו-health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
+emoji: אמוג׳י בודד, צבעוני ומתאים לאוכל (למשל 🍳 🥗 🍽️ 🍪 🍝 🥛) — לפי סוג המאכל וההקשר.
 tip: טיפ מעשי אחד ויחיד לשיפור הבריאותיות של הארוחה — התחשב בערכי התזונה שחישבת, ביחס בין השומן, הפחמימות והחלבון, ובסוג הארוחה שצוין. נסח בעברית, קצר במיוחד (עד כ-60 תווים, שורה אחת בלבד, בלי מעבר שורה).
 אם הארוחה מאוזנת ובריאה ממילא — החזר tipGood=true ו-tip קצר של עידוד בלבד (למשל "יישר כוח! ארוחה מאוזנת"). אחרת tipGood=false.
 סוג הארוחה: ${typeLabel}
@@ -533,6 +534,7 @@ function parseNutrition(text) {
     const str = (re)=>{ const m=clean.match(re); return m?m[1].trim():""; };
     return normalize({
       name: str(/name["']?\s*[:=]\s*"?([^",\n}]+)"?/i) || str(/שם[^:"}]*["']?\s*[:=]\s*"?([^",\n}]+)"?/i),
+      emoji: str(/emoji["']?\s*[:=]\s*"([^"\n}]+)"/i) || str(/אמוג['׳]?י[^:"}]*["']?\s*[:=]\s*"([^"\n}]+)"/i),
       calories:num(/calories["':\s]+(\d+\.?\d*)/i) || num(/קלוריות[:\s]+(\d+)/),
       protein:num(/protein["':\s]+(\d+\.?\d*)/i) || num(/חלבון[:\s]+(\d+)/),
       fat:num(/fat["':\s]+(\d+\.?\d*)/i) || num(/שומן[:\s]+(\d+)/),
@@ -543,8 +545,10 @@ function parseNutrition(text) {
     });
   }
 }
+const cleanEmoji = (e)=> typeof e === "string" ? Array.from(e.trim().replace(/\s+/g,"")).slice(0,2).join("") : "";
 const normalize = (o)=>({
   name: typeof o.name === "string" ? o.name.trim().slice(0,60) : "",
+  emoji: cleanEmoji(o.emoji),
   calories:Math.round(+o.calories||0), protein:Math.round(+o.protein||0),
   fat:Math.round(+o.fat||0), carbs:Math.round(+o.carbs||0),
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
@@ -675,6 +679,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
       ...m,
       nutrition: { calories:n.calories, protein:n.protein, fat:n.fat, carbs:n.carbs, health:n.health },
       name: (m.name||"").trim() ? m.name : (n.name || fallbackName(m)),
+      emoji: (m.emoji||"").trim() ? m.emoji : (n.emoji || ""),
       tip: aiTip || (local ? local.tip : ""),
       tipGood: aiTip ? !!n.tipGood : (local ? local.tipGood : false),
       tipChecked: source === "ai",
