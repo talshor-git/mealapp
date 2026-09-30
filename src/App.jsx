@@ -92,8 +92,9 @@ const MODEL_IDS = MODEL_OPTIONS.map(m=>m.id);
 const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.22";
+const APP_VERSION = "2.23";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1003,28 +1004,54 @@ function StepDots({ step }) {
 }
 
 // ============================================================
+//  WEEK STRIP — רצועת שבוע (ראשון→שבת) בתוך מסך היומן
+// ============================================================
+function WeekStrip({ date, setDate }) {
+  const start = startOfWeek(date);
+  const days = Array.from({ length:7 }, (_,i)=>addDays(start,i));
+  const todayK = key(new Date());
+  return (
+    <div style={{ display:"flex", background:T.border, borderRadius:16, padding:4, gap:2 }}>
+      {days.map((d,i)=>{
+        const sel = isSameDay(d, date);
+        const isToday = key(d) === todayK;
+        const future = key(d) > todayK;
+        return (
+          <button key={i} onClick={()=>{ if(!future) setDate(d); }} disabled={future}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+              border:"none", padding:"7px 0", borderRadius:12, cursor:future?"default":"pointer",
+              background: sel ? "#fff" : "transparent",
+              boxShadow: sel ? "0 2px 8px rgba(0,0,0,.12)" : "none",
+              opacity: future ? .4 : 1, transition:"background .15s ease" }}>
+            <span style={{ fontSize:11, fontWeight:500, color: sel ? T.text2 : T.text3 }}>{HE_DAYS_SHORT[i]}</span>
+            <span style={{ fontSize:16, fontWeight: sel ? 700 : 500, lineHeight:1,
+              color: sel ? T.ink : (isToday ? T.violet : T.text2) }}>{d.getDate()}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
 //  DAILY VIEW
 // ============================================================
 function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
   const totals = dayTotals(day);
   const ratio = user.goal ? totals.calories/user.goal : 0;
   const meals = day?.meals || [];
-  const today = isSameDay(date, new Date());
+  const atCurrentWeek = key(startOfWeek(date)) >= key(startOfWeek(new Date()));
 
   return (
     <div style={{ padding:"0 18px 120px" }}>
-      {/* date nav */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 4px 10px" }}>
-        <button onClick={()=>setDate(addDays(date,1))} disabled={today}
-          style={{ ...iconBtn, opacity:today?.3:1 }}><ChevronRight size={22} color={T.text2}/></button>
-        <div style={{ textAlign:"center" }}>
-          <p style={{ margin:0, fontSize:17, fontWeight:500, color:T.ink }}>
-            {today ? "היום" : `יום ${HE_DAYS[date.getDay()]}`}
-          </p>
-          <p style={{ margin:"2px 0 0", fontSize:12, color:T.text3 }}>{date.getDate()} ב{HE_MONTHS[date.getMonth()]}</p>
-        </div>
-        <button onClick={()=>setDate(addDays(date,-1))} style={iconBtn}><ChevronLeft size={22} color={T.text2}/></button>
+      {/* date nav: month + week arrows, then the week strip */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 2px 8px" }}>
+        <button onClick={()=>setDate(addDays(date,7))} disabled={atCurrentWeek}
+          style={{ ...iconBtn, opacity:atCurrentWeek?.3:1 }}><ChevronRight size={20} color={T.text2}/></button>
+        <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
+        <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
       </div>
+      <WeekStrip date={date} setDate={setDate}/>
 
       {/* the plate / bars */}
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"12px 0 18px" }}>
