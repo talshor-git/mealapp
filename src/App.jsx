@@ -93,7 +93,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.20";
+const APP_VERSION = "2.21";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1221,6 +1221,27 @@ function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete }) {
 // ============================================================
 //  PROFILE VIEW
 // ============================================================
+// ============================================================
+//  SEGMENTED — בורר קומפקטי בין שתי אפשרויות
+// ============================================================
+function Segmented({ options, value, onChange }) {
+  return (
+    <div style={{ display:"flex", background:T.pillBg, borderRadius:12, padding:3, gap:3 }}>
+      {options.map(([v, lead, label])=>(
+        <button key={v} onClick={()=>onChange(v)}
+          style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            border:"none", borderRadius:9, padding:"8px 6px", fontSize:12.5, fontWeight:500, cursor:"pointer",
+            background: value===v ? T.gradPrimary : "transparent",
+            color: value===v ? "#fff" : T.text2,
+            boxShadow: value===v ? T.shGlow : "none" }}>
+          {lead && <span style={{ fontSize:15, display:"inline-flex" }}>{lead}</span>}
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
@@ -1248,9 +1269,9 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
 
   return (
     <div style={{ padding:"14px 18px 120px" }}>
-      <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 18px" }}>הפרופיל שלי</h2>
+      <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 14px" }}>הפרופיל שלי</h2>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
+      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <label style={lbl}>שם</label>
         <input style={input} value={user.name} onChange={e=>setUser({ ...user, name:e.target.value })}/>
         <label style={{ ...lbl, marginTop:14 }}>יעד קלורי יומי</label>
@@ -1262,52 +1283,33 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
           <MacroGoalInput color={T.carbs} label="פחמימות" value={user.goalCarbs||0} onChange={v=>setUser({ ...user, goalCarbs:v })}/>
           <MacroGoalInput color={T.fat} label="שומן" value={user.goalFat||0} onChange={v=>setUser({ ...user, goalFat:v })}/>
         </div>
-        <label style={{ ...lbl, marginTop:14 }}>דמות מלווה</label>
-        <div style={{ display:"flex", gap:10 }}>
-          {[["chef_m","👨‍🍳","שף"],["chef_f","👩‍🍳","שפית"]].map(([v,e,l])=>(
-            <button key={v} onClick={()=>setUser({ ...user, character:v })}
-              style={{ ...typeBtn, flex:1, ...(user.character===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent" }:{}) }}>
-              <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
-            </button>
-          ))}
-        </div>
-
-        <label style={{ ...lbl, marginTop:14 }}>תצוגת סיכום יומי</label>
-        <div style={{ display:"flex", gap:10 }}>
-          {[["ring","🍩","גלגל"],["bars","📊","פסים"]].map(([v,e,l])=>(
-            <button key={v} onClick={()=>setUser({ ...user, chartStyle:v })}
-              style={{ ...typeBtn, flex:1, ...((user.chartStyle||"ring")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
-              <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
-            </button>
-          ))}
-        </div>
-
-        <label style={{ ...lbl, marginTop:14 }}>ברירת מחדל להזנת רכיבים</label>
-        <div style={{ display:"flex", gap:10 }}>
-          {[["list","📋","רשימת רכיבים"],["text","✍️","טקסט חופשי"]].map(([v,e,l])=>(
-            <button key={v} onClick={()=>setUser({ ...user, ingredientMode:v })}
-              style={{ ...typeBtn, flex:1, ...((user.ingredientMode||"list")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
-              <span style={{ fontSize:24 }}>{e}</span><span style={{ fontSize:12 }}>{l}</span>
-            </button>
-          ))}
-        </div>
-
-        <label style={{ ...lbl, marginTop:14 }}>ערכת צבעים</label>
-        <div style={{ display:"flex", gap:10 }}>
-          {PALETTE_LABELS.map(([v,label])=>(
-            <button key={v} onClick={()=>setUser({ ...user, palette:v })}
-              style={{ ...typeBtn, flex:1, ...((user.palette||"green")===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
-              <span style={{ width:34, height:16, borderRadius:999, background:PALETTES[v].gradPrimary,
-                border:((user.palette||"green")===v) ? "1.5px solid rgba(255,255,255,.65)" : `1.5px solid ${T.border}` }}/>
-              <span style={{ fontSize:12 }}>{label}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard, marginBottom:16 }}>
+      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+        <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>העדפות</p>
+
+        <label style={{ ...lbl, marginBottom:6 }}>דמות מלווה</label>
+        <Segmented options={[["chef_m","👨‍🍳","שף"],["chef_f","👩‍🍳","שפית"]]}
+          value={user.character} onChange={v=>setUser({ ...user, character:v })}/>
+
+        <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>תצוגת סיכום יומי</label>
+        <Segmented options={[["ring","🍩","גלגל"],["bars","📊","פסים"]]}
+          value={user.chartStyle||"ring"} onChange={v=>setUser({ ...user, chartStyle:v })}/>
+
+        <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>ברירת מחדל להזנת רכיבים</label>
+        <Segmented options={[["list","📋","רשימת רכיבים"],["text","✍️","טקסט חופשי"]]}
+          value={user.ingredientMode||"list"} onChange={v=>setUser({ ...user, ingredientMode:v })}/>
+
+        <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>ערכת צבעים</label>
+        <Segmented
+          options={PALETTE_LABELS.map(([v,l])=>[v,
+            <span key={v} style={{ width:16, height:16, borderRadius:999, background:PALETTES[v].gradPrimary, display:"inline-block" }}/>, l])}
+          value={user.palette||"green"} onChange={v=>setUser({ ...user, palette:v })}/>
+      </div>
+
+      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:500, color:T.ink }}>חיבור למנוע AI</p>
-        <p style={{ margin:"0 0 14px", fontSize:12, color:T.text3 }}>
+        <p style={{ margin:"0 0 12px", fontSize:12, color:T.text3 }}>
           כדי לשלוח את הפרומפט ישירות מהאפליקציה למנוע ה-AI.
         </p>
         <label style={lbl}>מפתח API</label>
@@ -1343,7 +1345,7 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
         </p>
       </div>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard }}>
+      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard }}>
         <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>גיבוי הנתונים</p>
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onExport} style={{ ...softBtn, flex:1 }}><Download size={16}/> ייצוא לקובץ</button>
