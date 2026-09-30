@@ -96,7 +96,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.28";
+const APP_VERSION = "2.29";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1182,18 +1182,20 @@ function NavRow({ onPrev, onNext, label }) {
 // ============================================================
 //  LIBRARY VIEW
 // ============================================================
-function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete }) {
+function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete, onView }) {
   return (
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 4px" }}>ספריית ארוחות</h2>
-      <p style={{ fontSize:14, color:T.text2, margin:"0 0 18px" }}>ארוחות חוזרות — הוספה ליום בלחיצה אחת, בלי חישוב מחדש.</p>
+      <p style={{ fontSize:14, color:T.text2, margin:"0 0 18px" }}>ארוחות חוזרות — הוספה ליום בלחיצה אחת, בלי חישוב מחדש. לחצו על ארוחה לפרטים וערכים מלאים.</p>
       {savedMeals.length===0 && (
         <div style={{ ...emptyState, cursor:"default", flexDirection:"column", gap:6, padding:"28px 16px" }}>
           <BookOpen size={26}/><span>אין עדיין ארוחות שמורות. שמרי ארוחה מזרימת ההוספה.</span>
         </div>
       )}
       {savedMeals.map(sm=>(
-        <div key={sm.id} style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard,
+        <div key={sm.id} onClick={()=>onView(sm)} role="button" tabIndex={0}
+          onKeyDown={(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onView(sm); } }}
+          style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, cursor:"pointer",
           display:"flex", alignItems:"center", gap:8, marginBottom:11 }}>
           <div style={{ width:44, height:44, borderRadius:14, background:T.proteinL, display:"flex",
             alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{sm.emoji||"🍽️"}</div>
@@ -1205,9 +1207,9 @@ function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete }) {
               {Math.round(sm.nutrition?.calories||0)} קק״ל · {MEAL_TYPES[sm.type]?.label}
             </p>
           </div>
-          <button onClick={()=>onQuickAdd(sm)} style={{ ...pill, padding:"7px 12px", flexShrink:0 }}><Plus size={14}/> הוספה</button>
-          <button onClick={()=>onEdit(sm)} aria-label="עריכה" style={{ ...iconBtn, flexShrink:0 }}><Pencil size={16} color={T.text3}/></button>
-          <button onClick={()=>onDelete(sm.id)} aria-label="מחיקה" style={{ ...iconBtn, flexShrink:0 }}><Trash2 size={16} color={T.text3}/></button>
+          <button onClick={(e)=>{ e.stopPropagation(); onQuickAdd(sm); }} style={{ ...pill, padding:"7px 12px", flexShrink:0 }}><Plus size={14}/> הוספה</button>
+          <button onClick={(e)=>{ e.stopPropagation(); onEdit(sm); }} aria-label="עריכה" style={{ ...iconBtn, flexShrink:0 }}><Pencil size={16} color={T.text3}/></button>
+          <button onClick={(e)=>{ e.stopPropagation(); onDelete(sm.id); }} aria-label="מחיקה" style={{ ...iconBtn, flexShrink:0 }}><Trash2 size={16} color={T.text3}/></button>
         </div>
       ))}
     </div>
@@ -1417,6 +1419,7 @@ export default function App() {
   const [modal, setModal] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [detailsMeal, setDetailsMeal] = useState(null);
+  const [detailsSaved, setDetailsSaved] = useState(false);
   const [editMeal, setEditMeal] = useState(null);
   const [editSavedMeal, setEditSavedMeal] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -1521,11 +1524,12 @@ export default function App() {
     <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
       <div style={{ background:T.page, animation:"rise .3s ease" }}>
         {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user}
-          onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={setDetailsMeal} onEditMeal={setEditMeal}/>}
+          onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
           onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
           onQuickAdd={quickAddSaved} onEdit={setEditSavedMeal}
+          onView={(sm)=>{ setDetailsSaved(true); setDetailsMeal(sm); }}
           onDelete={requestDeleteSaved}/>}
         {tab==="profile" && <ProfileView user={data.user}
           setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}
@@ -1551,7 +1555,7 @@ export default function App() {
 
       {detailsMeal && (
         <MealDetailsModal meal={detailsMeal} onClose={()=>setDetailsMeal(null)}
-          onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); setEditMeal(m); }}/>
+          onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); (detailsSaved ? setEditSavedMeal : setEditMeal)(m); }}/>
       )}
 
       {editMeal && (
