@@ -94,7 +94,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.23";
+const APP_VERSION = "2.24";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1015,14 +1015,13 @@ function WeekStrip({ date, setDate }) {
       {days.map((d,i)=>{
         const sel = isSameDay(d, date);
         const isToday = key(d) === todayK;
-        const future = key(d) > todayK;
         return (
-          <button key={i} onClick={()=>{ if(!future) setDate(d); }} disabled={future}
+          <button key={i} onClick={()=>setDate(d)}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
-              border:"none", padding:"7px 0", borderRadius:12, cursor:future?"default":"pointer",
+              border:"none", padding:"7px 0", borderRadius:12, cursor:"pointer",
               background: sel ? "#fff" : "transparent",
               boxShadow: sel ? "0 2px 8px rgba(0,0,0,.12)" : "none",
-              opacity: future ? .4 : 1, transition:"background .15s ease" }}>
+              transition:"background .15s ease" }}>
             <span style={{ fontSize:11, fontWeight:500, color: sel ? T.text2 : T.text3 }}>{HE_DAYS_SHORT[i]}</span>
             <span style={{ fontSize:16, fontWeight: sel ? 700 : 500, lineHeight:1,
               color: sel ? T.ink : (isToday ? T.violet : T.text2) }}>{d.getDate()}</span>
@@ -1040,14 +1039,12 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
   const totals = dayTotals(day);
   const ratio = user.goal ? totals.calories/user.goal : 0;
   const meals = day?.meals || [];
-  const atCurrentWeek = key(startOfWeek(date)) >= key(startOfWeek(new Date()));
 
   return (
     <div style={{ padding:"0 18px 120px" }}>
       {/* date nav: month + week arrows, then the week strip */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 2px 8px" }}>
-        <button onClick={()=>setDate(addDays(date,7))} disabled={atCurrentWeek}
-          style={{ ...iconBtn, opacity:atCurrentWeek?.3:1 }}><ChevronRight size={20} color={T.text2}/></button>
+        <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
         <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
         <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
       </div>
