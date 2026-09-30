@@ -93,7 +93,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.21";
+const APP_VERSION = "2.22";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1542,7 +1542,7 @@ export default function App() {
 
       {/* bottom nav */}
       <div style={navBar}>
-        <NavItem icon={BookOpen} label="יומן" active={tab==="daily"} onClick={()=>setTab("daily")}/>
+        <NavItem icon={BookOpen} label="יומן" active={tab==="daily"} onClick={()=>{ setDate(new Date()); setTab("daily"); }}/>
         <NavItem icon={CalendarDays} label="לוח שנה" active={tab==="calendar"} onClick={()=>setTab("calendar")}/>
         <button onClick={()=>openAdd(null)} aria-label="הוספת ארוחה" style={fab}><Plus size={28} color="#fff"/></button>
         <NavItem icon={LayoutGrid} label="ספרייה" active={tab==="library"} onClick={()=>setTab("library")}/>
