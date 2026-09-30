@@ -93,7 +93,7 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.19";
+const APP_VERSION = "2.20";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -446,6 +446,16 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
             </div>
           </div>
 
+          {(meal.tip||"").trim() && (
+            <div style={{ ...card2, marginBottom:16, display:"flex", alignItems:"center", gap:10,
+              background: meal.tipGood ? T.proteinL : T.carbsL,
+              border:`1px solid ${meal.tipGood ? T.protein : T.carbs}` }}>
+              <span style={{ fontSize:20, flexShrink:0 }}>{meal.tipGood ? "🎉" : "💡"}</span>
+              <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:500, color:T.ink,
+                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{meal.tip}</span>
+            </div>
+          )}
+
           {(ings.length>0 || (meal.freeText||"").trim()) && (
             <div style={{ ...card2, marginBottom:16 }}>
               <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:500, color:T.ink }}>רכיבים</p>
@@ -474,16 +484,20 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
 // ============================================================
 //  ADD-MEAL MODAL (3-step wizard)
 // ============================================================
-const emptyMeal = (type) => ({ id:uid(), name:"", type: type || mealTypeByTime(), emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], freeText:"", nutrition:null, source:null });
+const emptyMeal = (type) => ({ id:uid(), name:"", type: type || mealTypeByTime(), emoji:"", ingredients:[{ name:"", qty:"", unit:"גרם" }], freeText:"", nutrition:null, tip:"", tipGood:false, source:null });
 
 function buildPrompt(meal) {
   const list = (meal.freeText||"").trim()
     ? meal.freeText.trim()
     : meal.ingredients.filter(i=>i.name.trim())
         .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
-  return `אתה מחשבון תזונה מדויק. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
-{"name": "שם קצר ומושך לארוחה בעברית (2-4 מילים), לפי ההקשר של הרכיבים", "calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5}
-כאשר name הוא שם הארוחה (החלק הראשון), ו-health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
+  const typeLabel = (MEAL_TYPES[meal.type] || MEAL_TYPES.snack).label;
+  return `אתה מחשבון תזונה מדויק ומומחה לתזונה. עבור הארוחה הבאה החזר אך ורק אובייקט JSON תקין, ללא טקסט נוסף, במבנה:
+{"name": "שם קצר ומושך לארוחה בעברית (2-4 מילים), לפי ההקשר של הרכיבים", "calories": מספר, "protein": מספר, "fat": מספר, "carbs": מספר, "health": מספר בין 1 ל-5, "tip": "הערה קצרה בעברית, שורה אחת בלבד", "tipGood": true/false}
+כאשר name הוא שם הארוחה, ו-health הוא דירוג בריאותיות כללי (1=לא בריא, 5=בריא מאוד).
+tip: טיפ מעשי אחד ויחיד לשיפור הבריאותיות של הארוחה — התחשב בערכי התזונה שחישבת, ביחס בין השומן, הפחמימות והחלבון, ובסוג הארוחה שצוין. נסח בעברית, קצר במיוחד (עד כ-60 תווים, שורה אחת בלבד, בלי מעבר שורה).
+אם הארוחה מאוזנת ובריאה ממילא — החזר tipGood=true ו-tip קצר של עידוד בלבד (למשל "יישר כוח! ארוחה מאוזנת"). אחרת tipGood=false.
+סוג הארוחה: ${typeLabel}
 רכיבים: ${list}`;
 }
 
@@ -501,6 +515,8 @@ function parseNutrition(text) {
       fat:num(/fat["':\s]+(\d+\.?\d*)/i) || num(/שומן[:\s]+(\d+)/),
       carbs:num(/carbs["':\s]+(\d+\.?\d*)/i) || num(/פחמימ[^:]*[:\s]+(\d+)/),
       health:num(/health["':\s]+(\d+\.?\d*)/i) || 3,
+      tip: str(/tip["']?\s*[:=]\s*"([^"\n}]+)"/i) || str(/הערה[^:"}]*["']?\s*[:=]\s*"([^"\n}]+)"/i),
+      tipGood: /tipGood["']?\s*[:=]\s*true/i.test(clean),
     });
   }
 }
@@ -509,7 +525,21 @@ const normalize = (o)=>({
   calories:Math.round(+o.calories||0), protein:Math.round(+o.protein||0),
   fat:Math.round(+o.fat||0), carbs:Math.round(+o.carbs||0),
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
+  tip: typeof o.tip === "string" ? o.tip.trim().replace(/\s+/g," ").slice(0,80) : "",
+  tipGood: o.tipGood === true || o.tipGood === "true",
 });
+
+// טיפ מקומי כשאין תשובת AI (למשל הזנה ידנית)
+function localTip(n) {
+  const p=(n.protein||0)*4, c=(n.carbs||0)*4, f=(n.fat||0)*9;
+  const tot=p+c+f;
+  if (!tot) return { tip:"", tipGood:false };
+  const pR=p/tot, cR=c/tot, fR=f/tot;
+  if (fR > 0.42) return { tip:"הארוחה עתירת שומן — אפשר לאזן עם ירקות וחלבון רזה.", tipGood:false };
+  if (cR > 0.62) return { tip:"הרבה פחמימות — הוספת חלבון תאזן את רמת הסוכר בדם.", tipGood:false };
+  if (pR < 0.18) return { tip:"חסר חלבון — הוסיפו ביצה, גבינה או קטניה.", tipGood:false };
+  return { tip:"יישר כוח! ארוחה מאוזנת.", tipGood:true };
+}
 
 function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode }) {
   const isEdit = !!initialMeal;
@@ -574,12 +604,18 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     return mealType(m.type).label;
   };
   // החלת הערכים שחושבו + שם הארוחה (לא דורסים שם קיים בעריכה)
-  const applyNutrition = (m, n, source)=>({
-    ...m,
-    nutrition: { calories:n.calories, protein:n.protein, fat:n.fat, carbs:n.carbs, health:n.health },
-    name: (m.name||"").trim() ? m.name : (n.name || fallbackName(m)),
-    source,
-  });
+  const applyNutrition = (m, n, source)=>{
+    const aiTip = (n.tip || "").trim();
+    const local = aiTip ? null : localTip(n);
+    return {
+      ...m,
+      nutrition: { calories:n.calories, protein:n.protein, fat:n.fat, carbs:n.carbs, health:n.health },
+      name: (m.name||"").trim() ? m.name : (n.name || fallbackName(m)),
+      tip: aiTip || (local ? local.tip : ""),
+      tipGood: aiTip ? !!n.tipGood : (local ? local.tipGood : false),
+      source,
+    };
+  };
 
   // business rule: editing ingredients invalidates derived values
   const onIngredientChange = (i,k,v)=>{ setIng(i,k,v); if (meal.nutrition){ setDirty(true); } };
@@ -1432,7 +1468,7 @@ export default function App() {
   const saveMeal = (meal)=> setData(d=>{
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||mealType(meal.type).emoji,
       type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
-      nutrition:meal.nutrition, source:meal.source };
+      nutrition:meal.nutrition, tip:meal.tip, tipGood:meal.tipGood, source:meal.source };
     const idx=d.savedMeals.findIndex(s=>s.name===meal.name);
     if (idx===-1) return { ...d, savedMeals:[sm,...d.savedMeals] };
     return { ...d, savedMeals:d.savedMeals.map((s,i)=> i===idx ? { ...sm, id:s.id } : s) };
