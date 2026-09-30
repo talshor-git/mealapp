@@ -3,7 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text, Send, Loader2,
+  ListChecks, Text, Send, Loader2, RefreshCw,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
 import { sendToModel } from "./ai.js";
@@ -101,7 +101,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.32";
+const APP_VERSION = "2.33";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1399,6 +1399,17 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
     setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
   };
 
+  // טעינה מחדש ישר לגרסה האחרונה של האתר — עם עקיפת מטמון
+  const reloadLatest = ()=>{
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("v", Date.now());
+      window.location.replace(url.toString());
+    } catch {
+      window.location.reload();
+    }
+  };
+
   return (
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 14px" }}>הפרופיל שלי</h2>
@@ -1491,6 +1502,13 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
       </div>
 
       <button onClick={onReset} style={{ ...linkBtn, marginTop:20, color:T.fat }}>איפוס כל הנתונים</button>
+
+      <button onClick={reloadLatest} style={{ ...softBtn, width:"100%", marginTop:18 }}>
+        <RefreshCw size={16}/> עדכון גרסה
+      </button>
+      <p style={{ margin:"8px 0 0", fontSize:11, color:T.text3, textAlign:"center" }}>
+        טוען את העמוד מחדש ישר לגרסה האחרונה של האתר.
+      </p>
 
       <p style={{ margin:"24px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
         בְּתֵאָבוֹן · גרסה {APP_VERSION}
