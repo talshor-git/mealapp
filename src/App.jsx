@@ -94,7 +94,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.24";
+const APP_VERSION = "2.25";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1060,13 +1060,11 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
             <RemainingCaption totals={totals} goal={user.goal}/>
           </>
         )}
+        <div style={{ width:"100%" }}>
+          <Companion character={user.character} ratio={ratio} name={user.name}/>
+        </div>
         <Stars value={totals.health}/>
         <MacroLegend totals={totals} user={user}/>
-      </div>
-
-      {/* companion */}
-      <div style={{ marginBottom:18 }}>
-        <Companion character={user.character} ratio={ratio} name={user.name}/>
       </div>
 
       {/* meals by type */}
