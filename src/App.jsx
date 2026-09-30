@@ -96,7 +96,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.29";
+const APP_VERSION = "2.30";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -149,9 +149,13 @@ export class ErrorBoundary extends Component {
 // ============================================================
 //  CONFIRM DIALOG — וידוא לפני פעולה בלתי הפיכה (מחיקה / יציאה)
 // ============================================================
+// מונע גלילת רקע כשהמגע מתחיל מחוץ לפופ-אפ (שכבת גיבוי, בעיקר ל-iOS)
+const blockBackdropScroll = (e)=>{ if (e.target === e.currentTarget) e.preventDefault(); };
+
 function ConfirmDialog({ title, message, confirmLabel="אישור", cancelLabel="ביטול", danger=true, onConfirm, onCancel }) {
   return (
-    <div style={{ ...overlay, zIndex:60, alignItems:"center", justifyContent:"center", padding:"0 24px" }}>
+    <div style={{ ...overlay, zIndex:60, alignItems:"center", justifyContent:"center", padding:"0 24px" }}
+      onTouchMove={blockBackdropScroll}>
       <div style={{ background:"#fff", borderRadius:22, padding:"22px 20px", width:"100%", maxWidth:360,
         boxShadow:"0 20px 50px rgba(0,0,0,.28)", textAlign:"center", animation:"rise .2s ease" }}>
         <div style={{ fontSize:38, marginBottom:6 }}>{danger ? "🗑️" : "⚠️"}</div>
@@ -395,14 +399,14 @@ function MealDetailsModal({ meal, onClose, onEdit }) {
   const n = meal.nutrition || {};
   const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={overlay} onClick={onClose} onTouchMove={blockBackdropScroll}>
       <div style={sheet} onClick={e=>e.stopPropagation()}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
           <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>פרטי הארוחה</h3>
           <button onClick={onClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
         </div>
 
-        <div style={{ overflowY:"auto", paddingLeft:2, marginTop:14 }}>
+        <div style={{ overflowY:"auto", flex:1, minHeight:0, overscrollBehavior:"contain", paddingLeft:2, marginTop:14 }}>
           <div style={{ background:T.gradPrimary, borderRadius:22, padding:18, color:"#fff",
             boxShadow:T.shGlow, marginBottom:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -678,7 +682,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   };
 
   return (
-    <div style={overlay}>
+    <div style={overlay} onTouchMove={blockBackdropScroll}>
       <div style={sheet}>
         {/* header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
@@ -696,7 +700,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         </div>
         <StepDots step={step}/>
 
-        <div style={{ overflowY:"auto", paddingLeft:2, marginTop:14 }}>
+        <div style={{ overflowY:"auto", flex:1, minHeight:0, overscrollBehavior:"contain", paddingLeft:2, marginTop:14 }}>
         {/* ---------- STEP 1 ---------- */}
         {step===1 && (
           <div>
@@ -1441,6 +1445,13 @@ export default function App() {
   // persist on change
   useEffect(()=>{ if(ready && data) saveData(data); },[data,ready]);
 
+  // נעילת גלילת הרקע כשפופ-אפ פתוח — הגלילה מתאפשרת רק בתוך הפופ-אפ
+  useEffect(()=>{
+    const anyOpen = !!(modal || detailsMeal || editMeal || editSavedMeal || confirmState);
+    document.body.style.overflow = anyOpen ? "hidden" : "";
+    return ()=>{ document.body.style.overflow = ""; };
+  },[modal, detailsMeal, editMeal, editSavedMeal, confirmState]);
+
   // החלת ערכת הצבעים הנבחרת (ברירת מחדל: ירוק וכתום)
   applyPalette((data && data.user && data.user.palette) || "green");
 
@@ -1618,7 +1629,7 @@ function buildStyles(){
     paddingTop:"max(env(safe-area-inset-top, 0px), 12px)" };
   sheet = { background:T.page, width:"100%", maxWidth:480, maxHeight:"100%", borderRadius:"28px 28px 0 0",
     padding:"20px 18px calc(22px + env(safe-area-inset-bottom, 0px))", display:"flex", flexDirection:"column",
-    animation:"rise .28s ease" };
+    overflow:"hidden", overscrollBehavior:"contain", animation:"rise .28s ease" };
 
   // כפתור סגירה גדול וברור — יעד מגע נוח במובייל
   closeBtn = { width:44, height:44, borderRadius:"50%", border:"none", background:T.pillBg,
