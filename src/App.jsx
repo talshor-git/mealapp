@@ -3,7 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text, Send, Loader2, RefreshCw,
+  ListChecks, Text, Send, Loader2, RefreshCw, KeyRound,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
 import { sendToModel } from "./ai.js";
@@ -101,7 +101,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.34";
+const APP_VERSION = "2.35";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1376,7 +1376,7 @@ function Segmented({ options, value, onChange }) {
   );
 }
 
-function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onSaveAIConfig }) {
+function ProfileView({ user, setUser, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
   const [aiModel, setAiModel] = useState(
@@ -1503,6 +1503,13 @@ function ProfileView({ user, setUser, onExport, onImport, onReset, aiConfig, onS
         </div>
         <p style={{ margin:"12px 0 0", fontSize:12, color:T.text3 }}>
           הנתונים נשמרים מקומית במכשיר. ייצוא מאפשר גיבוי והעברה בין מכשירים.
+        </p>
+
+        <button onClick={onExportWithKey} style={{ ...ghostBtn, width:"100%", marginTop:10 }}>
+          <KeyRound size={16}/> ייצוא עם מפתח API
+        </button>
+        <p style={{ margin:"8px 0 0", fontSize:11, color:T.text3 }}>
+          כולל את מפתח ה-API והגדרות המודל (כולל מאמץ החשיבה) — לשמירה או העברה למכשיר אחר. ייבוא של קובץ כזה יחזיר גם את ההגדרות. שימרו את הקובץ במקום מאובטח.
         </p>
       </div>
 
@@ -1659,13 +1666,23 @@ export default function App() {
   }));
   const quickAddSaved = (sm)=>{ addMealToDay({ ...sm }); setTab("daily"); };
 
-  const exportData = ()=>{
-    const blob=new Blob([JSON.stringify(data,null,2)],{ type:"application/json" });
+  const downloadJSON = (obj, name)=>{
+    const blob=new Blob([JSON.stringify(obj,null,2)],{ type:"application/json" });
     const url=URL.createObjectURL(blob); const a=document.createElement("a");
-    a.href=url; a.download=`beteavon-${key(new Date())}.json`; a.click(); URL.revokeObjectURL(url);
+    a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
   };
+  const exportData = ()=> downloadJSON(data, `beteavon-${key(new Date())}.json`);
+  // ייצוא הכולל גם את הגדרות ה-AI (כולל מפתח ה-API)
+  const exportDataWithKey = ()=> downloadJSON({ ...data, ai: aiConfig || null }, `beteavon-with-key-${key(new Date())}.json`);
   const importData = (file)=>{ const r=new FileReader();
-    r.onload=()=>{ try{ const d=JSON.parse(r.result); if(d.user&&d.days) setData(d); }catch{} };
+    r.onload=()=>{ try{
+      const d=JSON.parse(r.result);
+      if(d.user && d.days){
+        const { ai, ...rest } = d;
+        setData(rest);
+        if(ai && typeof ai === "object"){ saveAIConfig(ai); setAiConfig(ai); }
+      }
+    }catch{} };
     r.readAsText(file);
   };
   const reset = ()=> setConfirmState({
@@ -1704,7 +1721,7 @@ export default function App() {
           onView={(sm)=>{ setDetailsSaved(true); setDetailsMeal(sm); }}
           onDelete={requestDeleteSaved}/>}
         {tab==="profile" && <ProfileView user={data.user}
-          setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onImport={importData} onReset={reset}
+          setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onExportWithKey={exportDataWithKey} onImport={importData} onReset={reset}
           aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
       </div>
 
