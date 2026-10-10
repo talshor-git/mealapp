@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.37";
+const APP_VERSION = "2.38";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -820,7 +820,8 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   };
 
   const loadSaved = (sm)=>{
-    setMeal({ ...sm, id:uid(), ingredients: sm.ingredients?.length?sm.ingredients:[{name:"",qty:"",unit:"גרם"}] });
+    // טעינת ארוחה שמורה אינה דורסת את סוג הארוחה שנבחר בחלון (ברירת מחדל לפי השעה)
+    setMeal({ ...sm, id:uid(), type: meal.type || sm.type, ingredients: sm.ingredients?.length?sm.ingredients:[{name:"",qty:"",unit:"גרם"}] });
     setIngMode((sm.freeText||"").trim() ? "text" : "list");
     setSource(sm.source); setShowLibrary(false); setDirty(false); setStep(3);
   };
