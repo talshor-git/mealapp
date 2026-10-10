@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.39";
+const APP_VERSION = "2.40";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -930,7 +930,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 const Ic = MEAL_TYPES[t].icon, active = meal.type===t;
                 return (
                   <button key={t} onClick={()=>setField("type",t)} style={{
-                    ...typeBtn, ...(active?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow }:{}) }}>
+                    ...typeBtn, ...(active?{ background:T.gradPrimary, color:"#fff", border:"1.5px solid transparent", boxShadow:T.shGlow }:{}) }}>
                     <Ic size={18}/><span style={{ fontSize:11 }}>{MEAL_TYPES[t].label.replace("ארוחת ","")}</span>
                   </button>
                 );
@@ -1663,7 +1663,7 @@ function Onboarding({ onDone }) {
         <div style={{ display:"flex", gap:10 }}>
           {[["chef_m","👨‍🍳","שף"],["chef_f","👩‍🍳","שפית"]].map(([v,e,l])=>(
             <button key={v} onClick={()=>setChar(v)}
-              style={{ ...typeBtn, flex:1, padding:"14px 8px", ...(character===v?{ background:T.gradPrimary, color:"#fff", borderColor:"transparent" }:{}) }}>
+              style={{ ...typeBtn, flex:1, padding:"14px 8px", ...(character===v?{ background:T.gradPrimary, color:"#fff", border:"1.5px solid transparent" }:{}) }}>
               <span style={{ fontSize:30 }}>{e}</span><span style={{ fontSize:13 }}>{l}</span>
             </button>
           ))}
@@ -2000,7 +2000,7 @@ function buildStyles(){
 
   segBtn = { flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${T.border}`,
     background:T.surface, color:T.text2, fontSize:14, fontWeight:500, cursor:"pointer" };
-  segActive = { background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow };
+  segActive = { background:T.gradPrimary, color:"#fff", border:"1.5px solid transparent", boxShadow:T.shGlow };
 
   weekRow = { display:"flex", alignItems:"center", gap:12, width:"100%", background:T.surface,
     border:`1px solid ${T.border}`, borderRadius:16, padding:"12px 14px", cursor:"pointer", boxShadow:T.shCard };
