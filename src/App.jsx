@@ -101,7 +101,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.35";
+const APP_VERSION = "2.36";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -125,6 +125,40 @@ const dayTotals = (day) => {
   });
   t.health = t.healthN ? t.healthSum/t.healthN : 0;
   return t;
+};
+
+// ---- goals timeline ----
+// היסטוריית יעדים: כל רשומה {from, calories, protein, carbs, fat} תקפה מ-from והלאה (כולל).
+// שינוי יעד יוצר/מעדכן את הגרסה של היום, כך שימים קודמים שומרים על היעד שהיה בתוקף בזמנם.
+const goalsFromUser = (user)=>({
+  calories: user?.goal||0, protein: user?.goalProtein||0,
+  carbs: user?.goalCarbs||0, fat: user?.goalFat||0,
+});
+const normalizeGoals = (g)=>({
+  calories: Math.max(0, Math.round(+g?.calories||0)),
+  protein: Math.max(0, Math.round(+g?.protein||0)),
+  carbs: Math.max(0, Math.round(+g?.carbs||0)),
+  fat: Math.max(0, Math.round(+g?.fat||0)),
+});
+// מיפוי לשמות השדות הישנים (לתאימות לאחור)
+const flatGoals = (g)=>({ goal:g.calories, goalProtein:g.protein, goalCarbs:g.carbs, goalFat:g.fat });
+// היעד התקף בתאריך נתון — הגרסה האחרונה עם from <= dateKey
+const goalsForDate = (user, dateKey)=>{
+  const hist = user?.goalHistory;
+  if (!Array.isArray(hist) || hist.length === 0) return goalsFromUser(user);
+  let best = null;
+  for (const v of hist) {
+    if (!v || typeof v.from !== "string") continue;
+    if (v.from <= dateKey && (!best || v.from >= best.from)) best = v;
+  }
+  // תאריך מוקדם מכל הגרסאות — נשתמש בגרסה המוקדמת ביותר
+  if (!best) best = hist.reduce((a,b)=> (!a || (b?.from < a?.from)) ? b : a, null);
+  return normalizeGoals(best || goalsFromUser(user));
+};
+// מוודא שלמשתמש יש ציר יעדים; אם אין — זורע גרסה אחת מהערכים הנוכחיים
+const withGoalHistory = (user, from)=>{
+  if (!user || (Array.isArray(user.goalHistory) && user.goalHistory.length)) return user;
+  return { ...user, goalHistory: [{ from: from || key(new Date()), ...normalizeGoals(goalsFromUser(user)) }] };
 };
 
 // ============================================================
@@ -328,11 +362,11 @@ function MacroGoalInput({ color, label, value, onChange }) {
   );
 }
 
-function MacroLegend({ totals, user }) {
+function MacroLegend({ totals, goals }) {
   const items = [
-    { label:"חלבון",   color:T.protein, val:totals.protein, goal:user.goalProtein },
-    { label:"פחמימות", color:T.carbs,   val:totals.carbs,   goal:user.goalCarbs },
-    { label:"שומן",    color:T.fat,     val:totals.fat,     goal:user.goalFat },
+    { label:"חלבון",   color:T.protein, val:totals.protein, goal:goals?.protein },
+    { label:"פחמימות", color:T.carbs,   val:totals.carbs,   goal:goals?.carbs },
+    { label:"שומן",    color:T.fat,     val:totals.fat,     goal:goals?.fat },
   ];
   // שורה קומפקטית בתוך מסגרת לבנה עם ריווח
   return (
@@ -1145,7 +1179,7 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
 
@@ -1162,14 +1196,14 @@ function DailyView({ date, setDate, day, user, onAdd, onDeleteMeal, onViewMeal, 
       {/* the plate / bars */}
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"12px 0 18px" }}>
         {user.chartStyle==="bars" ? (
-          <Bars totals={totals} goal={user.goal}/>
+          <Bars totals={totals} goal={goals.calories}/>
         ) : (
           <>
-            <Plate totals={totals} goal={user.goal}/>
-            <RemainingCaption totals={totals} goal={user.goal}/>
+            <Plate totals={totals} goal={goals.calories}/>
+            <RemainingCaption totals={totals} goal={goals.calories}/>
           </>
         )}
-        <MacroLegend totals={totals} user={user}/>
+        <MacroLegend totals={totals} goals={goals}/>
         <Stars value={totals.health}/>
       </div>
 
@@ -1237,7 +1271,8 @@ function WeekGrid({ anchor, setAnchor, days, user, onPick }) {
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:14 }}>
         {week.map(d=>{
           const day = days[key(d)]; const t = dayTotals(day);
-          const pct = user.goal ? Math.min(t.calories/user.goal,1) : 0;
+          const g = goalsForDate(user, key(d));
+          const pct = g.calories ? Math.min(t.calories/g.calories,1) : 0;
           const emojis = (day?.meals||[]).slice(0,5).map(m=>m.emoji||mealType(m.type).emoji).join(" ");
           return (
             <button key={key(d)} onClick={()=>onPick(d)} style={weekRow}>
@@ -1253,7 +1288,7 @@ function WeekGrid({ anchor, setAnchor, days, user, onPick }) {
               </div>
               <div style={{ textAlign:"left", width:70 }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:500, color:T.ink }}>{Math.round(t.calories)}</p>
-                <p style={{ margin:0, fontSize:10, color:T.text3 }}>/ {user.goal}</p>
+                <p style={{ margin:0, fontSize:10, color:T.text3 }}>/ {g.calories}</p>
               </div>
             </button>
           );
@@ -1277,7 +1312,8 @@ function MonthGrid({ anchor, setAnchor, days, user, onPick }) {
         {cells.map((d,i)=>{
           if(!d) return <div key={i}/>;
           const day=days[key(d)]; const t=dayTotals(day);
-          const pct=user.goal?Math.min(t.calories/user.goal,1):0;
+          const g=goalsForDate(user,key(d));
+          const pct=g.calories?Math.min(t.calories/g.calories,1):0;
           const has=(day?.meals||[]).length>0;
           const isToday=isSameDay(d,new Date());
           return (
@@ -1376,8 +1412,10 @@ function Segmented({ options, value, onChange }) {
   );
 }
 
-function ProfileView({ user, setUser, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
+function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
+  // היעד הנוכחי (של היום) — מהציר, עם נפילה לשדות הישנים
+  const curGoals = goalsForDate(user, key(new Date()));
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
   const [aiModel, setAiModel] = useState(
     aiConfig?.model && MODEL_IDS.includes(aiConfig.model) ? aiConfig.model : DEFAULT_MODEL
@@ -1423,14 +1461,17 @@ function ProfileView({ user, setUser, onExport, onExportWithKey, onImport, onRes
         <label style={lbl}>שם</label>
         <input style={input} value={user.name} onChange={e=>setUser({ ...user, name:e.target.value })}/>
         <label style={{ ...lbl, marginTop:14 }}>יעד קלורי יומי</label>
-        <input style={input} inputMode="numeric" value={user.goal}
-          onChange={e=>setUser({ ...user, goal:parseInt(e.target.value)||0 })}/>
+        <input style={input} inputMode="numeric" value={curGoals.calories}
+          onChange={e=>onSetGoal({ calories:parseInt(e.target.value)||0 })}/>
         <label style={{ ...lbl, marginTop:14 }}>יעדי מאקרו יומיים (גרם)</label>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-          <MacroGoalInput color={T.protein} label="חלבון" value={user.goalProtein||0} onChange={v=>setUser({ ...user, goalProtein:v })}/>
-          <MacroGoalInput color={T.carbs} label="פחמימות" value={user.goalCarbs||0} onChange={v=>setUser({ ...user, goalCarbs:v })}/>
-          <MacroGoalInput color={T.fat} label="שומן" value={user.goalFat||0} onChange={v=>setUser({ ...user, goalFat:v })}/>
+          <MacroGoalInput color={T.protein} label="חלבון" value={curGoals.protein} onChange={v=>onSetGoal({ protein:v })}/>
+          <MacroGoalInput color={T.carbs} label="פחמימות" value={curGoals.carbs} onChange={v=>onSetGoal({ carbs:v })}/>
+          <MacroGoalInput color={T.fat} label="שומן" value={curGoals.fat} onChange={v=>onSetGoal({ fat:v })}/>
         </div>
+        <p style={{ margin:"10px 0 0", fontSize:11, color:T.text3 }}>
+          שינוי היעד חל מהיום והלאה בלבד — ימים קודמים שומרים על היעד שהיה בתוקף אז.
+        </p>
       </div>
 
       <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
@@ -1595,8 +1636,13 @@ export default function App() {
 
   // load once
   useEffect(()=>{
-    const d = loadData();
-    setData(d || { user:null, days:{}, savedMeals:[] });
+    const d = loadData() || { user:null, days:{}, savedMeals:[] };
+    // הגירת יעדים: זריעת ציר זמן מהערכים הקיימים, מהתאריך המוקדם עם תיעוד (או מהיום)
+    if (d.user && !(Array.isArray(d.user.goalHistory) && d.user.goalHistory.length)) {
+      const dayKeys = Object.keys(d.days||{}).filter(k=>(d.days[k]?.meals||[]).length>0).sort();
+      d.user = withGoalHistory(d.user, dayKeys[0]);
+    }
+    setData(d);
     const ai = loadAIConfig();
     if (ai && (!ai.model || !MODEL_IDS.includes(ai.model))) {
       ai.model = DEFAULT_MODEL;
@@ -1628,12 +1674,26 @@ export default function App() {
   // onboarding
   if(!data.user) return (
     <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
-      <Onboarding onDone={(user)=>setData(d=>({ ...d, user }))}/>
+      <Onboarding onDone={(user)=>setData(d=>({ ...d, user: withGoalHistory({ ...user }, key(new Date())) }))}/>
     </div>
   );
 
   const dKey = key(date);
   const day = data.days[dKey];
+  // היעד התקף לתאריך המוצג (לא בהכרח היום)
+  const goals = goalsForDate(data.user, dKey);
+
+  // שינוי יעד — יוצר/מעדכן את גרסת היום בציר, ומסנכרן את השדות הישנים
+  const setGoal = (patch)=> setData(d=>{
+    if(!d?.user) return d;
+    const today = key(new Date());
+    const next = normalizeGoals({ ...goalsForDate(d.user, today), ...patch });
+    const hist = (Array.isArray(d.user.goalHistory) ? [...d.user.goalHistory] : [])
+      .filter(v=> v && typeof v.from === "string" && v.from !== today);
+    hist.push({ from: today, ...next });
+    hist.sort((a,b)=> a.from < b.from ? -1 : a.from > b.from ? 1 : 0);
+    return { ...d, user: { ...d.user, ...flatGoals(next), goalHistory: hist } };
+  });
 
   const addMealToDay = (meal)=> setData(d=>{
     const days={ ...d.days };
@@ -1712,7 +1772,7 @@ export default function App() {
   return (
     <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
       <div style={{ background:T.page, animation:"rise .3s ease" }}>
-        {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user}
+        {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user} goals={goals}
           onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
           onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
@@ -1721,7 +1781,7 @@ export default function App() {
           onView={(sm)=>{ setDetailsSaved(true); setDetailsMeal(sm); }}
           onDelete={requestDeleteSaved}/>}
         {tab==="profile" && <ProfileView user={data.user}
-          setUser={(u)=>setData(d=>({ ...d, user:u }))} onExport={exportData} onExportWithKey={exportDataWithKey} onImport={importData} onReset={reset}
+          setUser={(u)=>setData(d=>({ ...d, user:u }))} onSetGoal={setGoal} onExport={exportData} onExportWithKey={exportDataWithKey} onImport={importData} onReset={reset}
           aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
       </div>
 
