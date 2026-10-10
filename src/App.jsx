@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.38";
+const APP_VERSION = "2.39";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1222,9 +1222,9 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
     <div style={{ padding:"0 18px 120px" }}>
       {/* date nav: month + week arrows, then the week strip */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 2px 8px" }}>
-        <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
+        <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
         <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
-        <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
+        <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
       </div>
       <WeekStrip date={date} setDate={setDate}/>
 
@@ -1301,7 +1301,7 @@ function WeekGrid({ anchor, setAnchor, days, user, onPick }) {
   const week = Array.from({length:7},(_,i)=>addDays(start,i));
   return (
     <div>
-      <NavRow onPrev={()=>setAnchor(addDays(anchor,7))} onNext={()=>setAnchor(addDays(anchor,-7))}
+      <NavRow onPrev={()=>setAnchor(addDays(anchor,-7))} onNext={()=>setAnchor(addDays(anchor,7))}
         label={`${start.getDate()}–${addDays(start,6).getDate()} ב${HE_MONTHS[start.getMonth()]}`}/>
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:14 }}>
         {week.map(d=>{
@@ -1340,7 +1340,7 @@ function MonthGrid({ anchor, setAnchor, days, user, onPick }) {
   const cells=[...Array(startPad).fill(null), ...Array.from({length:total},(_,i)=>new Date(y,mo,i+1))];
   return (
     <div>
-      <NavRow onPrev={()=>setAnchor(new Date(y,mo+1,1))} onNext={()=>setAnchor(new Date(y,mo-1,1))}
+      <NavRow onPrev={()=>setAnchor(new Date(y,mo-1,1))} onNext={()=>setAnchor(new Date(y,mo+1,1))}
         label={`${HE_MONTHS[mo]} ${y}`}/>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginTop:14 }}>
         {HE_DAYS.map(d=><div key={d} style={{ textAlign:"center", fontSize:11, color:T.text3, paddingBottom:4 }}>{d[0]}</div>)}
