@@ -5,7 +5,7 @@ import {
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
   ListChecks, Text, Send, Loader2, RefreshCw, KeyRound,
 } from "lucide-react";
-import { loadData, saveData, loadAIConfig, saveAIConfig } from "./storage.js";
+import { loadData, saveData, loadAIConfig, saveAIConfig, loadTheme, saveTheme } from "./storage.js";
 import { sendToModel } from "./ai.js";
 
 /* ============================================================
@@ -37,6 +37,22 @@ const PALETTES = {
     shFab: "0 10px 22px rgba(46,139,61,.36)",
     shFrame: "0 0 60px rgba(46,139,61,.07)",
     accent: "#2E8B3D", accentRing: "rgba(46,139,61,.14)",
+    // גרסה כהה — דורסת את צבעי המשטחים והטקסט
+    dark: {
+      coral:"#63C463", rose:"#4FB55A", violet:"#8BC34A",
+      protein:"#6CC46C", carbs:"#E8A33D", fat:"#A5D46A",
+      proteinL:"#17271A", carbsL:"#2A2113", fatL:"#1E2A16",
+      ink:"#EAF2E7", text2:"#B3C3B6", text3:"#7C8F80",
+      border:"#26332A", surface:"#182018", page:"#0F1511",
+      soft:"#1E2A1F", pillBg:"#223026", pillText:"#9CCB6B",
+      emptyFrom:"#162016", emptyTo:"#182418", emptyBorder:"#3E6B42",
+      ringTrack:"#223026", navBg:"rgba(14,20,15,.92)", navIdle:"#5E7362",
+      overlayBg:"rgba(0,0,0,.6)", starOn:"#E8A33D", starOff:"#2A382D",
+      over:"#F0B44E", accent:"#6CC46C", accentRing:"rgba(108,196,108,.2)",
+      shCard:"0 6px 16px rgba(0,0,0,.45)", shRaised:"0 8px 20px rgba(0,0,0,.5)",
+      shGlow:"0 14px 34px rgba(46,139,61,.35)", shFab:"0 10px 22px rgba(0,0,0,.5)",
+      shFrame:"0 0 60px rgba(0,0,0,.35)",
+    },
   },
   // הפלטה הקודמת — קורל, ורוד וסגול
   coral: {
@@ -60,10 +76,28 @@ const PALETTES = {
     shFab: "0 10px 22px rgba(255,78,126,.42)",
     shFrame: "0 0 60px rgba(124,58,237,.08)",
     accent: "#FF4E7E", accentRing: "rgba(255,78,126,.12)",
+    // גרסה כהה — דורסת את צבעי המשטחים והטקסט
+    dark: {
+      coral:"#FF9A82", rose:"#FF7EA6", violet:"#B08CF5",
+      protein:"#3FC79E", carbs:"#F5B23D", fat:"#F27EB4",
+      proteinL:"#14251F", carbsL:"#2A2113", fatL:"#2A1722",
+      ink:"#F1EDF7", text2:"#BFB8CD", text3:"#857D99",
+      border:"#2C2638", surface:"#1B1726", page:"#120F1A",
+      soft:"#2A1F2E", pillBg:"#2A2340", pillText:"#C4A9F5",
+      emptyFrom:"#241722", emptyTo:"#251A2C", emptyBorder:"#7A4A63",
+      ringTrack:"#2A2536", navBg:"rgba(18,15,26,.92)", navIdle:"#6A6280",
+      overlayBg:"rgba(0,0,0,.62)", starOn:"#F5B301", starOff:"#332D42",
+      over:"#FF7EA6", accent:"#FF7EA6", accentRing:"rgba(255,78,126,.2)",
+      shCard:"0 6px 16px rgba(0,0,0,.45)", shRaised:"0 8px 20px rgba(0,0,0,.5)",
+      shGlow:"0 14px 34px rgba(255,78,126,.35)", shFab:"0 10px 22px rgba(0,0,0,.5)",
+      shFrame:"0 0 60px rgba(0,0,0,.35)",
+    },
   },
 };
 const PALETTE_LABELS = [["green","ירוק וכתום"],["coral","קורל וסגול"]];
-let PALETTE_NAME = "green";
+const THEME_OPTIONS = [["system","🖥️","מערכת"],["light","☀️","בהיר"],["dark","🌙","כהה"]];
+let PALETTE_NAME = "";
+let MODE_NAME = "";
 let T = PALETTES.green;
 
 const MEAL_TYPES = {
@@ -101,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.36";
+const APP_VERSION = "2.37";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -195,7 +229,7 @@ function ConfirmDialog({ title, message, confirmLabel="אישור", cancelLabel=
   return (
     <div style={{ ...overlay, zIndex:60, alignItems:"center", justifyContent:"center", padding:"0 24px" }}
       onTouchMove={blockBackdropScroll}>
-      <div style={{ background:"#fff", borderRadius:22, padding:"22px 20px", width:"100%", maxWidth:360,
+      <div style={{ background:T.surface, borderRadius:22, padding:"22px 20px", width:"100%", maxWidth:360,
         boxShadow:"0 20px 50px rgba(0,0,0,.28)", textAlign:"center", animation:"rise .2s ease" }}>
         <div style={{ fontSize:38, marginBottom:6 }}>{danger ? "🗑️" : "⚠️"}</div>
         <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:T.ink }}>{title}</h3>
@@ -288,7 +322,7 @@ function Bars({ totals, goal }) {
   const tap = (k)=>{ if (k && k!=="none") setSel(v=>v===k?null:k); };
 
   return (
-    <div style={{ width:"100%", maxWidth:360, background:"#fff", borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
+    <div style={{ width:"100%", maxWidth:360, background:T.surface, borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
       <p style={{ margin:0, fontSize:13, color:T.text3 }}>{over ? "מעל היעד" : "נותרו היום"}</p>
       <p style={{ margin:"4px 0 0", display:"flex", alignItems:"baseline", gap:6 }}>
         <span style={{ fontSize:42, fontWeight:700, color:over?T.over:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
@@ -370,7 +404,7 @@ function MacroLegend({ totals, goals }) {
   ];
   // שורה קומפקטית בתוך מסגרת לבנה עם ריווח
   return (
-    <div style={{ width:"100%", background:"#fff", borderRadius:14, padding:"11px 12px", boxShadow:T.shCard }}>
+    <div style={{ width:"100%", background:T.surface, borderRadius:14, padding:"11px 12px", boxShadow:T.shCard }}>
       <div style={{ display:"flex", justifyContent:"center", flexWrap:"wrap", gap:"6px 12px" }}>
         {items.map(it=>(
           <span key={it.label} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12.5 }}>
@@ -391,7 +425,7 @@ function MealCard({ meal, onDelete, onEdit, onClick }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   return (
-    <div onClick={onClick} style={{ background:"#fff", borderRadius:20, padding:14, boxShadow:T.shRaised,
+    <div onClick={onClick} style={{ background:T.surface, borderRadius:20, padding:14, boxShadow:T.shRaised,
       display:"flex", alignItems:"center", gap:13, marginBottom:11, cursor:onClick?"pointer":"default" }}>
       <div style={{ width:46, height:46, borderRadius:15, background:T.gradWarm, display:"flex",
         alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0,
@@ -1163,7 +1197,7 @@ function WeekStrip({ date, setDate }) {
           <button key={i} onClick={()=>setDate(d)}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
               border:"none", padding:"7px 0", borderRadius:12, cursor:"pointer",
-              background: sel ? "#fff" : "transparent",
+              background: sel ? T.surface : "transparent",
               boxShadow: sel ? "0 2px 8px rgba(0,0,0,.12)" : "none",
               transition:"background .15s ease" }}>
             <span style={{ fontSize:11, fontWeight:500, color: sel ? T.text2 : T.text3 }}>{HE_DAYS_SHORT[i]}</span>
@@ -1323,7 +1357,7 @@ function MonthGrid({ anchor, setAnchor, days, user, onPick }) {
                 <div style={{ width:22, height:22, borderRadius:"50%", marginTop:3,
                   background:`conic-gradient(${T.rose} ${pct*360}deg, ${T.border} 0deg)`,
                   display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <div style={{ width:14, height:14, borderRadius:"50%", background:"#fff",
+                  <div style={{ width:14, height:14, borderRadius:"50%", background:T.surface,
                     fontSize:8, display:"flex", alignItems:"center", justifyContent:"center", color:T.text3 }}>
                     {(day.meals||[]).length}
                   </div>
@@ -1363,7 +1397,7 @@ function LibraryView({ savedMeals, onQuickAdd, onEdit, onDelete, onView }) {
       {savedMeals.map(sm=>(
         <div key={sm.id} onClick={()=>onView(sm)} role="button" tabIndex={0}
           onKeyDown={(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onView(sm); } }}
-          style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, cursor:"pointer",
+          style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, cursor:"pointer",
           display:"flex", alignItems:"center", gap:8, marginBottom:11 }}>
           <div style={{ width:44, height:44, borderRadius:14, background:T.proteinL, display:"flex",
             alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{sm.emoji||"🍽️"}</div>
@@ -1412,10 +1446,22 @@ function Segmented({ options, value, onChange }) {
   );
 }
 
-function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
+function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
   // היעד הנוכחי (של היום) — מהציר, עם נפילה לשדות הישנים
   const curGoals = goalsForDate(user, key(new Date()));
+  // טיוטה מקומית ליעדים — נשמרת רק אחרי אישור
+  const [draft, setDraft] = useState(curGoals);
+  const [confirmGoals, setConfirmGoals] = useState(false);
+  const goalChanged = draft.calories!==curGoals.calories || draft.protein!==curGoals.protein
+    || draft.carbs!==curGoals.carbs || draft.fat!==curGoals.fat;
+  useEffect(()=>{ setDraft(curGoals); },[curGoals.calories, curGoals.protein, curGoals.carbs, curGoals.fat]);
+  // נעילת גלילת הרקע כשדיאלוג האישור פתוח
+  useEffect(()=>{
+    if (!confirmGoals) return;
+    document.body.style.overflow = "hidden";
+    return ()=>{ document.body.style.overflow = ""; };
+  },[confirmGoals]);
   const [aiKey, setAiKey] = useState(aiConfig?.apiKey || "");
   const [aiModel, setAiModel] = useState(
     aiConfig?.model && MODEL_IDS.includes(aiConfig.model) ? aiConfig.model : DEFAULT_MODEL
@@ -1457,24 +1503,31 @@ function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onIm
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 14px" }}>הפרופיל שלי</h2>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <label style={lbl}>שם</label>
         <input style={input} value={user.name} onChange={e=>setUser({ ...user, name:e.target.value })}/>
         <label style={{ ...lbl, marginTop:14 }}>יעד קלורי יומי</label>
-        <input style={input} inputMode="numeric" value={curGoals.calories}
-          onChange={e=>onSetGoal({ calories:parseInt(e.target.value)||0 })}/>
+        <input style={input} inputMode="numeric" value={draft.calories}
+          onChange={e=>setDraft(d=>({ ...d, calories:parseInt(e.target.value)||0 }))}/>
         <label style={{ ...lbl, marginTop:14 }}>יעדי מאקרו יומיים (גרם)</label>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-          <MacroGoalInput color={T.protein} label="חלבון" value={curGoals.protein} onChange={v=>onSetGoal({ protein:v })}/>
-          <MacroGoalInput color={T.carbs} label="פחמימות" value={curGoals.carbs} onChange={v=>onSetGoal({ carbs:v })}/>
-          <MacroGoalInput color={T.fat} label="שומן" value={curGoals.fat} onChange={v=>onSetGoal({ fat:v })}/>
+          <MacroGoalInput color={T.protein} label="חלבון" value={draft.protein} onChange={v=>setDraft(d=>({ ...d, protein:v }))}/>
+          <MacroGoalInput color={T.carbs} label="פחמימות" value={draft.carbs} onChange={v=>setDraft(d=>({ ...d, carbs:v }))}/>
+          <MacroGoalInput color={T.fat} label="שומן" value={draft.fat} onChange={v=>setDraft(d=>({ ...d, fat:v }))}/>
         </div>
+        {goalChanged && (
+          <button onClick={()=>setConfirmGoals(true)} style={{ ...primaryBtn, width:"100%", marginTop:12 }}>
+            <Save size={16}/> שמירת היעדים
+          </button>
+        )}
         <p style={{ margin:"10px 0 0", fontSize:11, color:T.text3 }}>
-          שינוי היעד חל מהיום והלאה בלבד — ימים קודמים שומרים על היעד שהיה בתוקף אז.
+          {goalChanged
+            ? "יש שינויים שלא נשמרו — יידרש אישור."
+            : "שינוי היעד יחול מהיום והלאה בלבד, לאחר אישור. ימים קודמים שומרים על היעד שהיה בתוקף אז."}
         </p>
       </div>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>העדפות</p>
 
         <label style={{ ...lbl, marginBottom:6 }}>תצוגת סיכום יומי</label>
@@ -1490,9 +1543,12 @@ function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onIm
           options={PALETTE_LABELS.map(([v,l])=>[v,
             <span key={v} style={{ width:16, height:16, borderRadius:999, background:PALETTES[v].gradPrimary, display:"inline-block" }}/>, l])}
           value={user.palette||"green"} onChange={v=>setUser({ ...user, palette:v })}/>
+
+        <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>מצב תצוגה</label>
+        <Segmented options={THEME_OPTIONS} value={themeMode} onChange={onSetTheme}/>
       </div>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
         <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:500, color:T.ink }}>חיבור למנוע AI</p>
         <p style={{ margin:"0 0 12px", fontSize:12, color:T.text3 }}>
           כדי לשלוח את הפרומפט ישירות מהאפליקציה למנוע ה-AI.
@@ -1534,7 +1590,7 @@ function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onIm
         </p>
       </div>
 
-      <div style={{ background:"#fff", borderRadius:18, padding:14, boxShadow:T.shCard }}>
+      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard }}>
         <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>גיבוי הנתונים</p>
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onExport} style={{ ...softBtn, flex:1 }}><Download size={16}/> ייצוא לקובץ</button>
@@ -1566,6 +1622,17 @@ function ProfileView({ user, setUser, onSetGoal, onExport, onExportWithKey, onIm
       <p style={{ margin:"24px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
         בְּתֵאָבוֹן · גרסה {APP_VERSION}
       </p>
+
+      {confirmGoals && (
+        <ConfirmDialog
+          title="לעדכן את היעדים?"
+          message="היעד החדש יחול מהיום והלאה בלבד. בימים שכבר תועדו תישמר התצוגה לפי היעד שהיה בתוקף אז."
+          confirmLabel="עדכון"
+          cancelLabel="ביטול"
+          danger={false}
+          onConfirm={()=>{ onSetGoal(draft); setConfirmGoals(false); }}
+          onCancel={()=>setConfirmGoals(false)}/>
+      )}
     </div>
   );
 }
@@ -1588,7 +1655,7 @@ function Onboarding({ onDone }) {
       <p style={{ fontSize:16, opacity:.94, margin:"0 0 28px", maxWidth:320 }}>
         יומן הארוחות שמחשב עבורך — פשוט כותבים מה אכלתם.
       </p>
-      <div style={{ background:"#fff", borderRadius:24, padding:20, color:T.ink, boxShadow:"0 20px 50px rgba(0,0,0,.2)" }}>
+      <div style={{ background:T.surface, borderRadius:24, padding:20, color:T.ink, boxShadow:"0 20px 50px rgba(0,0,0,.2)" }}>
         <label style={lbl}>איך לקרוא לך?</label>
         <input style={input} value={name} onChange={e=>setName(e.target.value)} placeholder="השם שלך"/>
         <label style={{ ...lbl, marginTop:16 }}>בחרי דמות מלווה</label>
@@ -1633,6 +1700,24 @@ export default function App() {
   const [editSavedMeal, setEditSavedMeal] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [aiConfig, setAiConfig] = useState(null);
+  // מצב תצוגה: מערכת / בהיר / כהה
+  const [themeMode, setThemeMode] = useState(()=> loadTheme());
+  const [systemDark, setSystemDark] = useState(()=> {
+    try { return window.matchMedia("(prefers-color-scheme: dark)").matches; } catch { return false; }
+  });
+
+  // מעקב אחרי העדפת המערכת כשהמצב הוא "מערכת"
+  useEffect(()=>{
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const on = (e)=> setSystemDark(e.matches);
+    setSystemDark(mq.matches);
+    if (mq.addEventListener) mq.addEventListener("change", on); else mq.addListener(on);
+    return ()=>{ if (mq.removeEventListener) mq.removeEventListener("change", on); else mq.removeListener(on); };
+  },[]);
+
+  // שינוי מצב התצוגה + שמירה
+  const changeTheme = (m)=>{ setThemeMode(m); saveTheme(m); };
 
   // load once
   useEffect(()=>{
@@ -1666,8 +1751,9 @@ export default function App() {
     return ()=>{ document.body.style.overflow = ""; };
   },[modal, detailsMeal, editMeal, editSavedMeal, confirmState]);
 
-  // החלת ערכת הצבעים הנבחרת (ברירת מחדל: ירוק וכתום)
-  applyPalette((data && data.user && data.user.palette) || "green");
+  // החלת ערכת הצבעים והמצב הנבחרים (ברירת מחדל: ירוק וכתום + לפי המערכת)
+  const effectiveMode = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
+  applyPalette((data && data.user && data.user.palette) || "green", effectiveMode);
 
   if(!ready) return <div style={{ ...frame, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", color:T.text3 }}>טוען…</div>;
 
@@ -1781,7 +1867,7 @@ export default function App() {
           onView={(sm)=>{ setDetailsSaved(true); setDetailsMeal(sm); }}
           onDelete={requestDeleteSaved}/>}
         {tab==="profile" && <ProfileView user={data.user}
-          setUser={(u)=>setData(d=>({ ...d, user:u }))} onSetGoal={setGoal} onExport={exportData} onExportWithKey={exportDataWithKey} onImport={importData} onReset={reset}
+          setUser={(u)=>setData(d=>({ ...d, user:u }))} onSetGoal={setGoal} themeMode={themeMode} onSetTheme={changeTheme} onExport={exportData} onExportWithKey={exportDataWithKey} onImport={importData} onReset={reset}
           aiConfig={aiConfig} onSaveAIConfig={(cfg)=>{ saveAIConfig(cfg); setAiConfig(cfg); }}/>}
       </div>
 
@@ -1882,7 +1968,7 @@ function buildStyles(){
 
   lbl = { display:"block", fontSize:13, fontWeight:500, color:T.text2, marginBottom:7 };
   input = { width:"100%", fontSize:15, padding:"11px 14px", border:`1.5px solid ${T.border}`,
-    borderRadius:12, background:"#fff", outline:"none", textAlign:"right", color:T.ink };
+    borderRadius:12, background:T.surface, outline:"none", textAlign:"right", color:T.ink };
 
   primaryBtn = { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8,
     border:"none", fontSize:15, fontWeight:500, padding:"13px 20px", borderRadius:999,
@@ -1899,34 +1985,45 @@ function buildStyles(){
     cursor:"pointer", padding:0 };
 
   typeBtn = { display:"flex", flexDirection:"column", alignItems:"center", gap:5, padding:"12px 6px",
-    border:`1.5px solid ${T.border}`, borderRadius:14, background:"#fff", color:T.text2, cursor:"pointer" };
+    border:`1.5px solid ${T.border}`, borderRadius:14, background:T.surface, color:T.text2, cursor:"pointer" };
 
   emptyState = { width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
     background:`linear-gradient(135deg,${T.emptyFrom},${T.emptyTo})`, border:`1.5px dashed ${T.emptyBorder}`,
     borderRadius:20, padding:15, color:T.fat, fontSize:14, fontWeight:500, cursor:"pointer" };
 
-  card2 = { background:"#fff", borderRadius:18, padding:16, boxShadow:T.shCard };
+  card2 = { background:T.surface, borderRadius:18, padding:16, boxShadow:T.shCard };
   savedRow = { width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 8px",
     background:"none", border:"none", cursor:"pointer", borderRadius:10 };
   stepChip = { width:20, height:20, borderRadius:"50%", background:T.gradPrimary, color:"#fff",
     fontSize:12, fontWeight:500, display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 };
 
   segBtn = { flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${T.border}`,
-    background:"#fff", color:T.text2, fontSize:14, fontWeight:500, cursor:"pointer" };
+    background:T.surface, color:T.text2, fontSize:14, fontWeight:500, cursor:"pointer" };
   segActive = { background:T.gradPrimary, color:"#fff", borderColor:"transparent", boxShadow:T.shGlow };
 
-  weekRow = { display:"flex", alignItems:"center", gap:12, width:"100%", background:"#fff",
+  weekRow = { display:"flex", alignItems:"center", gap:12, width:"100%", background:T.surface,
     border:`1px solid ${T.border}`, borderRadius:16, padding:"12px 14px", cursor:"pointer", boxShadow:T.shCard };
-  monthCell = { display:"flex", flexDirection:"column", alignItems:"center", background:"#fff",
+  monthCell = { display:"flex", flexDirection:"column", alignItems:"center", background:T.surface,
     border:`1px solid ${T.border}`, borderRadius:12, padding:"6px 2px", cursor:"pointer", minHeight:52 };
 }
 buildStyles();
 
-// החלפת פלטה בזמן ריצה — מעדכן את T ובונה מחדש את הסגנונות
-function applyPalette(name){
+// החלפת פלטה/מצב בזמן ריצה — מעדכן את T ובונה מחדש את הסגנונות
+function applyPalette(name, mode){
   const key = PALETTES[name] ? name : "green";
-  if (key === PALETTE_NAME) return;
+  const m = mode === "dark" ? "dark" : "light";
+  if (key === PALETTE_NAME && m === MODE_NAME) return;
   PALETTE_NAME = key;
-  T = PALETTES[key];
+  MODE_NAME = m;
+  const base = PALETTES[key];
+  T = m === "dark" ? { ...base, ...base.dark } : base;
+  try {
+    document.documentElement.style.colorScheme = m;
+    document.documentElement.style.setProperty("--app-scheme", m);
+    document.documentElement.style.setProperty("--app-bg", T.page);
+    document.documentElement.style.background = T.page;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", T.page);
+  } catch {}
   buildStyles();
 }

@@ -1,11 +1,11 @@
-:root { color-scheme: light; }
+:root { color-scheme: var(--app-scheme, light); }
 
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  background: #F7F7FB;
+  background: var(--app-bg, #F7F7FB);
   font-family: "Heebo", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
