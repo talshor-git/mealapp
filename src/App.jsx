@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.40";
+const APP_VERSION = "2.41";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -1693,6 +1693,38 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState("daily");
   const [date, setDate] = useState(new Date());
+  const [dayDir, setDayDir] = useState(1);   // כיוון מעבר היום לאנימציה: 1=הבא, -1=הקודם
+
+  // מעבר תאריך עם שמירת כיוון התנועה (לאנימציית החלקה עדינה)
+  const goToDate = (next)=>{
+    const nd = new Date(next);
+    setDayDir(nd.getTime() >= date.getTime() ? 1 : -1);
+    setDate(nd);
+  };
+
+  // מחוות החלקה אופקית על מסך היומן. ב-RTL הימים נעים מימין לשמאל,
+  // ולכן החלקה ימינה = היום הבא (התוכן מחליק פנימה מהשמאל), שמאלה = היום הקודם.
+  const swipeRef = useRef({ x:0, y:0, t:0, active:false });
+  const onSwipeStart = (e)=>{
+    if (e.touches.length !== 1) { swipeRef.current.active = false; return; }
+    const t = e.touches[0];
+    if (t.target?.closest?.("input, textarea, select, [data-no-swipe]")) { swipeRef.current.active = false; return; }
+    swipeRef.current = { x:t.clientX, y:t.clientY, t:Date.now(), active:true };
+  };
+  const onSwipeEnd = (e)=>{
+    const s = swipeRef.current;
+    if (!s.active) return;
+    s.active = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    // לא רגיש מדי: מרחק אופקי מובהק, דומיננטיות אופקית, ותנועה מהירה יחסית
+    if (absX < 60) return;
+    if (absX < absY * 1.4) return;
+    if (Date.now() - s.t > 900) return;
+    goToDate(addDays(date, dx > 0 ? 1 : -1));
+  };
   const [modal, setModal] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [detailsMeal, setDetailsMeal] = useState(null);
@@ -1858,11 +1890,19 @@ export default function App() {
 
   return (
     <div style={{ ...frame, "--palette-accent":T.accent, "--palette-ring":T.accentRing }}>
-      <div style={{ background:T.page, animation:"rise .3s ease" }}>
-        {tab==="daily" && <DailyView date={date} setDate={setDate} day={day} user={data.user} goals={goals}
-          onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>}
+      <div style={{ background:T.page, animation:"rise .3s ease",
+        touchAction: tab==="daily" ? "pan-y" : undefined }}
+        onTouchStart={tab==="daily" ? onSwipeStart : undefined}
+        onTouchEnd={tab==="daily" ? onSwipeEnd : undefined}>
+        {tab==="daily" && (
+          <div key={`${dKey}-${dayDir}`}
+            style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease" }}>
+            <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
+              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>
+          </div>
+        )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
-          onPick={(d)=>{ setDate(d); setTab("daily"); }}/>}
+          onPick={(d)=>{ goToDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
           onQuickAdd={quickAddSaved} onEdit={setEditSavedMeal}
           onView={(sm)=>{ setDetailsSaved(true); setDetailsMeal(sm); }}
@@ -1874,7 +1914,7 @@ export default function App() {
 
       {/* bottom nav */}
       <div style={navBar}>
-        <NavItem icon={BookOpen} label="יומן" active={tab==="daily"} onClick={()=>{ setDate(new Date()); setTab("daily"); }}/>
+        <NavItem icon={BookOpen} label="יומן" active={tab==="daily"} onClick={()=>{ goToDate(new Date()); setTab("daily"); }}/>
         <NavItem icon={CalendarDays} label="לוח שנה" active={tab==="calendar"} onClick={()=>setTab("calendar")}/>
         <button onClick={()=>openAdd(null)} aria-label="הוספת ארוחה" style={fab}><Plus size={28} color="#fff"/></button>
         <NavItem icon={LayoutGrid} label="ספרייה" active={tab==="library"} onClick={()=>setTab("library")}/>
