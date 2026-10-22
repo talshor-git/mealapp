@@ -135,7 +135,9 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.45";
+const APP_VERSION = "2.46";
+// משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
+const CLIP_TTL_MS = 60 * 1000;
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -687,7 +689,7 @@ async function fetchTip(meal, aiConfig){
   return parseTip(text);
 }
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode, clipboardMeal, onPasteClipboard }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode, clipboardMeal, clipboardExpiresAt, onPasteClipboard }) {
   const isEdit = !!initialMeal;
   const isSavedEdit = !!onUpdateSaved;
   const [step, setStep] = useState(1);
@@ -718,6 +720,14 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [tipLoading, setTipLoading] = useState(false);
   const [tipError, setTipError] = useState("");
   const [exitConfirm, setExitConfirm] = useState(false);
+  // ספירת זמן לתוקף "לוח ההעתקה" (קטן את הכפתור לזמן שנותר)
+  const [nowTick, setNowTick] = useState(()=> Date.now());
+  useEffect(()=>{
+    if(!clipboardMeal) return;
+    const t = setInterval(()=>setNowTick(Date.now()), 1000);
+    return ()=>clearInterval(t);
+  },[clipboardMeal]);
+  const clipSecs = clipboardExpiresAt ? Math.max(0, Math.ceil((clipboardExpiresAt - nowTick)/1000)) : 0;
 
   // האם המשתמשת שינתה משהו מאז פתיחת החלון (לצורך וידוא ביציאה)
   const initialSnapRef = useRef(null);
@@ -956,6 +966,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
             {!isEdit && clipboardMeal && (
               <button onClick={onPasteClipboard} style={{ ...primaryBtn, width:"100%", marginBottom:10 }}>
                 <Copy size={16}/> הדבקת ארוחה: {(clipboardMeal.name||"ללא שם").slice(0,24)}
+                {clipSecs>0 ? ` · ${clipSecs}ש׳` : ""}
               </button>
             )}
             {!isSavedEdit && savedMeals.length>0 && (
@@ -1894,6 +1905,15 @@ export default function App() {
   // הודעת אישור זמנית ("הועתק"/"הודבק")
   useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(""),1900); return ()=>clearTimeout(t); },[toast]);
 
+  // פקיעת "לוח ההעתקה" אחרי דקה — ניקוי מהזיכרון והאחסון
+  useEffect(()=>{
+    if(!clipboard?.expiresAt) return;
+    const ms = clipboard.expiresAt - Date.now();
+    if(ms <= 0){ saveClipboard(null); setClipboard(null); return; }
+    const t = setTimeout(()=>{ saveClipboard(null); setClipboard(null); }, ms);
+    return ()=>clearTimeout(t);
+  },[clipboard]);
+
   // החלת ערכת הצבעים והמצב הנבחרים (ברירת מחדל: ירוק וכתום + לפי המערכת)
   const effectiveMode = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
   applyPalette((data && data.user && data.user.palette) || "green", effectiveMode);
@@ -1930,19 +1950,19 @@ export default function App() {
     cur.meals.push({ ...meal, id:uid() });
     days[dKey]=cur; return { ...d, days };
   });
-  // העתקת ארוחה ל"לוח" הזמני — ניתן להדביק בכל יום
+  // העתקת ארוחה ל"לוח" הזמני — ניתן להדביק בכל יום, למשך דקה בלבד
   const copyMeal = (meal)=>{
-    const clip = { name:meal.name, emoji:meal.emoji, type:meal.type, ingredients:meal.ingredients,
+    const clip = { meal: { name:meal.name, emoji:meal.emoji, type:meal.type, ingredients:meal.ingredients,
       freeText:meal.freeText, nutrition:meal.nutrition, tip:meal.tip, tipGood:meal.tipGood,
-      tipChecked:meal.tipChecked, source:meal.source };
+      tipChecked:meal.tipChecked, source:meal.source }, expiresAt: Date.now() + CLIP_TTL_MS };
     saveClipboard(clip); setClipboard(clip);
-    setToast(`״${meal.name||"הארוחה"}״ הועתקה — אפשר להדביק ביום אחר`);
+    setToast(`״${meal.name||"הארוחה"}״ הועתקה — אפשר להדביק בדקה הקרובה`);
   };
   // הדבקת הארוחה המועתקת ליום המוצג
   const pasteMeal = ()=>{
-    if(!clipboard) return;
-    addMealToDay(clipboard);
-    setToast(`״${clipboard.name||"הארוחה"}״ הודבקה`);
+    if(!clipboard?.meal) return;
+    addMealToDay(clipboard.meal);
+    setToast(`״${clipboard.meal.name||"הארוחה"}״ הודבקה`);
   };
   const saveMeal = (meal)=> setData(d=>{
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||mealType(meal.type).emoji,
@@ -2048,7 +2068,8 @@ export default function App() {
       {modal && (
         <AddMealModal savedMeals={data.savedMeals} initialType={modalType} aiConfig={aiConfig}
           defaultIngMode={data.user.ingredientMode || "list"}
-          clipboardMeal={clipboard} onPasteClipboard={()=>{ setModal(false); pasteMeal(); }}
+          clipboardMeal={clipboard?.meal} clipboardExpiresAt={clipboard?.expiresAt}
+          onPasteClipboard={()=>{ setModal(false); pasteMeal(); }}
           onClose={()=>setModal(false)}
           onAddToDay={(m)=>{ addMealToDay(m); setModal(false); setTab("daily"); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
