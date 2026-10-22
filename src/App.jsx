@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.44";
+const APP_VERSION = "2.45";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -421,7 +421,7 @@ function MacroLegend({ totals, goals }) {
 // ============================================================
 //  MEAL CARD
 // ============================================================
-function MealCard({ meal, onDelete, onEdit, onCopy, onClick }) {
+function MealCard({ meal, onDelete, onEdit, onClick }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   return (
@@ -431,26 +431,22 @@ function MealCard({ meal, onDelete, onEdit, onCopy, onClick }) {
         alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0,
         boxShadow:T.shWarm }}>{meal.emoji || type.emoji}</div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <p style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink }}>{meal.name}</p>
-          {n.health ? <Stars value={n.health} size={12}/> : null}
+        <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+          <p style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink, minWidth:0,
+            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{meal.name}</p>
+          {n.health ? <span style={{ flexShrink:0, display:"inline-flex" }}><Stars value={n.health} size={12}/></span> : null}
         </div>
         <p style={{ margin:"3px 0 0", fontSize:12, color:T.text3, whiteSpace:"nowrap",
           overflow:"hidden", textOverflow:"ellipsis" }}>
           חלבון {Math.round(n.protein||0)}ג׳ · פחמימות {Math.round(n.carbs||0)}ג׳ · שומן {Math.round(n.fat||0)}ג׳
         </p>
       </div>
-      <div style={{ textAlign:"left" }}>
+      <div style={{ textAlign:"left", flexShrink:0 }}>
         <p style={{ margin:0, fontSize:16, fontWeight:500, color:T.ink }}>{Math.round(n.calories||0)}</p>
         <p style={{ margin:"1px 0 0", fontSize:10, color:T.text3 }}>קק״ל</p>
       </div>
-      {(onEdit || onDelete || onCopy) && (
-        <div style={{ display:"flex", gap:2 }}>
-          {onCopy && (
-            <button onClick={(e)=>{ e.stopPropagation(); onCopy(); }} aria-label="העתקת ארוחה" style={iconBtn}>
-              <Copy size={16} color={T.text3}/>
-            </button>
-          )}
+      {(onEdit || onDelete) && (
+        <div style={{ display:"flex", gap:2, flexShrink:0 }}>
           {onEdit && (
             <button onClick={(e)=>{ e.stopPropagation(); onEdit(); }} aria-label="עריכה" style={iconBtn}>
               <Pencil size={16} color={T.text3}/>
@@ -1285,7 +1281,7 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onCopyMeal }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
 
@@ -1333,7 +1329,7 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
               </div>
             </div>
             {list.map(m=><MealCard key={m.id} meal={m} onClick={()=>onViewMeal(m)}
-              onEdit={()=>onEditMeal(m)} onDelete={()=>onDeleteMeal(m.id)} onCopy={()=>onCopyMeal(m)}/>)}
+              onEdit={()=>onEditMeal(m)} onDelete={()=>onDeleteMeal(m.id)}/>)}
             {list.length===0 && (
               <button onClick={()=>onAdd(t)} style={emptyState}>
                 <Plus size={16}/> הוספת {MEAL_TYPES[t].label}
@@ -1518,6 +1514,30 @@ function Segmented({ options, value, onChange }) {
   );
 }
 
+// כרטיס מתקפל — כותרת קומפקטית עם סיכום, ובלחיצה נפתח לעריכה (טוגל עצמאי לכל כרטיס)
+function Section({ title, summary, summaryColor, badge, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+      <button onClick={()=>setOpen(o=>!o)} aria-expanded={open}
+        style={{ width:"100%", display:"flex", alignItems:"center", gap:10, background:"none",
+          border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:15, fontWeight:500, color:T.ink }}>{title}</div>
+          {summary && (
+            <div style={{ fontSize:12.5, color:summaryColor||T.text3, marginTop:2,
+              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{summary}</div>
+          )}
+        </div>
+        {badge}
+        <ChevronLeft size={18} color={T.text3}
+          style={{ flexShrink:0, transform: open ? "rotate(-90deg)" : "none", transition:"transform .2s" }}/>
+      </button>
+      {open && <div style={{ marginTop:14 }}>{children}</div>}
+    </div>
+  );
+}
+
 function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport, onExportWithKey, onImport, onReset, aiConfig, onSaveAIConfig }) {
   const fileRef = useRef();
   // היעד הנוכחי (של היום) — מהציר, עם נפילה לשדות הישנים
@@ -1571,11 +1591,24 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
     }
   };
 
+  const paletteLabel = (PALETTE_LABELS.find(([v])=>v===(user.palette||"green"))||[])[1] || "ירוק וכתום";
+  const chartLabel = user.chartStyle==="bars" ? "פסים" : "גלגל";
+  const ingredientLabel = user.ingredientMode==="text" ? "טקסט חופשי" : "רשימת רכיבים";
+  const themeLabel = (THEME_OPTIONS.find(([v])=>v===themeMode)||[])[2] || "מערכת";
+  const curModel = MODEL_OPTIONS.find(m=>m.id===aiModel) || {};
+  const aiReady = !!aiKey.trim();
+
   return (
     <div style={{ padding:"14px 18px 120px" }}>
       <h2 style={{ fontSize:22, fontWeight:700, color:T.ink, margin:"6px 0 14px" }}>הפרופיל שלי</h2>
 
-      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
+      <Section
+        title="הפרטים והיעדים"
+        summary={`${user.name||"ללא שם"} · ${draft.calories} קק״ל · ${draft.protein}/${draft.carbs}/${draft.fat} ג׳`}
+        badge={goalChanged ? (
+          <span style={{ fontSize:11, fontWeight:600, color:T.carbs, background:T.carbsL,
+            borderRadius:999, padding:"3px 9px", flexShrink:0 }}>לא נשמר</span>
+        ) : null}>
         <label style={lbl}>שם</label>
         <input style={input} value={user.name} onChange={e=>setUser({ ...user, name:e.target.value })}/>
         <label style={{ ...lbl, marginTop:14 }}>יעד קלורי יומי</label>
@@ -1597,11 +1630,11 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
             ? "יש שינויים שלא נשמרו — יידרש אישור."
             : "שינוי היעד יחול מהיום והלאה בלבד, לאחר אישור. ימים קודמים שומרים על היעד שהיה בתוקף אז."}
         </p>
-      </div>
+      </Section>
 
-      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
-        <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>העדפות</p>
-
+      <Section
+        title="העדפות"
+        summary={`${paletteLabel} · ${chartLabel} · ${ingredientLabel} · ${themeLabel}`}>
         <label style={{ ...lbl, marginBottom:6 }}>תצוגת סיכום יומי</label>
         <Segmented options={[["ring","🍩","גלגל"],["bars","📊","פסים"]]}
           value={user.chartStyle||"ring"} onChange={v=>setUser({ ...user, chartStyle:v })}/>
@@ -1618,10 +1651,12 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
 
         <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>מצב תצוגה</label>
         <Segmented options={THEME_OPTIONS} value={themeMode} onChange={onSetTheme}/>
-      </div>
+      </Section>
 
-      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard, marginBottom:12 }}>
-        <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:500, color:T.ink }}>חיבור למנוע AI</p>
+      <Section
+        title="חיבור למנוע AI"
+        summary={aiReady ? `${curModel.label||aiModel} · ${curModel.provider||""}` : "לא מוגדר — הוסיפו מפתח API"}
+        summaryColor={aiReady ? undefined : T.carbs}>
         <p style={{ margin:"0 0 12px", fontSize:12, color:T.text3 }}>
           כדי לשלוח את הפרומפט ישירות מהאפליקציה למנוע ה-AI.
         </p>
@@ -1660,10 +1695,9 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
         <p style={{ margin:"10px 0 0", fontSize:11, color:T.text3 }}>
           המפתח נשמר מקומית במכשיר בלבד, ואינו חלק מגיבוי הנתונים.
         </p>
-      </div>
+      </Section>
 
-      <div style={{ background:T.surface, borderRadius:18, padding:14, boxShadow:T.shCard }}>
-        <p style={{ margin:"0 0 12px", fontSize:15, fontWeight:500, color:T.ink }}>גיבוי הנתונים</p>
+      <Section title="גיבוי הנתונים" summary="ייצוא · ייבוא · ייצוא עם מפתח">
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onExport} style={{ ...softBtn, flex:1 }}><Download size={16}/> ייצוא לקובץ</button>
           <button onClick={()=>fileRef.current?.click()} style={{ ...ghostBtn, flex:1 }}><Upload size={16}/> ייבוא</button>
@@ -1680,7 +1714,7 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
         <p style={{ margin:"8px 0 0", fontSize:11, color:T.text3 }}>
           כולל את מפתח ה-API והגדרות המודל (כולל מאמץ החשיבה) — לשמירה או העברה למכשיר אחר. ייבוא של קובץ כזה יחזיר גם את ההגדרות. שימרו את הקובץ במקום מאובטח.
         </p>
-      </div>
+      </Section>
 
       <button onClick={onReset} style={{ ...linkBtn, marginTop:20, color:T.fat }}>איפוס כל הנתונים</button>
 
@@ -1988,7 +2022,7 @@ export default function App() {
           <div key={`${dKey}-${dayDir}`}
             style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
-              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onCopyMeal={copyMeal}/>
+              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>
           </div>
         )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
