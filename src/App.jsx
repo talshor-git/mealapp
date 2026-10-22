@@ -5,7 +5,7 @@ import {
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
   ListChecks, Text, Send, Loader2, RefreshCw, KeyRound,
 } from "lucide-react";
-import { loadData, saveData, loadAIConfig, saveAIConfig, loadTheme, saveTheme } from "./storage.js";
+import { loadData, saveData, loadAIConfig, saveAIConfig, loadTheme, saveTheme, loadClipboard, saveClipboard } from "./storage.js";
 import { sendToModel } from "./ai.js";
 
 /* ============================================================
@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.42";
+const APP_VERSION = "2.43";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -421,7 +421,7 @@ function MacroLegend({ totals, goals }) {
 // ============================================================
 //  MEAL CARD
 // ============================================================
-function MealCard({ meal, onDelete, onEdit, onClick }) {
+function MealCard({ meal, onDelete, onEdit, onCopy, onClick }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   return (
@@ -444,8 +444,13 @@ function MealCard({ meal, onDelete, onEdit, onClick }) {
         <p style={{ margin:0, fontSize:16, fontWeight:500, color:T.ink }}>{Math.round(n.calories||0)}</p>
         <p style={{ margin:"1px 0 0", fontSize:10, color:T.text3 }}>קק״ל</p>
       </div>
-      {(onEdit || onDelete) && (
+      {(onEdit || onDelete || onCopy) && (
         <div style={{ display:"flex", gap:2 }}>
+          {onCopy && (
+            <button onClick={(e)=>{ e.stopPropagation(); onCopy(); }} aria-label="העתקת ארוחה" style={iconBtn}>
+              <Copy size={16} color={T.text3}/>
+            </button>
+          )}
           {onEdit && (
             <button onClick={(e)=>{ e.stopPropagation(); onEdit(); }} aria-label="עריכה" style={iconBtn}>
               <Pencil size={16} color={T.text3}/>
@@ -467,7 +472,7 @@ const iconBtn = { background:"transparent", border:"none", cursor:"pointer", pad
 // ============================================================
 //  MEAL DETAILS MODAL — view what was entered
 // ============================================================
-function MealDetailsModal({ meal, onClose, onEdit, aiConfig, onTipUpdate }) {
+function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
@@ -563,9 +568,16 @@ function MealDetailsModal({ meal, onClose, onEdit, aiConfig, onTipUpdate }) {
             </div>
           )}
 
-          <button onClick={onEdit} style={{ ...primaryBtn, width:"100%" }}>
-            <Pencil size={16}/> עריכת ארוחה
-          </button>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={onEdit} style={{ ...primaryBtn, flex:1 }}>
+              <Pencil size={16}/> עריכת ארוחה
+            </button>
+            {onCopy && (
+              <button onClick={onCopy} style={{ ...softBtn, flex:1 }}>
+                <Copy size={16}/> העתקה
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -675,7 +687,7 @@ async function fetchTip(meal, aiConfig){
   return parseTip(text);
 }
 
-function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode }) {
+function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode, clipboardMeal, onPasteClipboard }) {
   const isEdit = !!initialMeal;
   const isSavedEdit = !!onUpdateSaved;
   const [step, setStep] = useState(1);
@@ -941,6 +953,11 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         {/* ---------- STEP 1 ---------- */}
         {step===1 && (
           <div>
+            {!isEdit && clipboardMeal && (
+              <button onClick={onPasteClipboard} style={{ ...primaryBtn, width:"100%", marginBottom:10 }}>
+                <Copy size={16}/> הדבקת ארוחה: {(clipboardMeal.name||"ללא שם").slice(0,24)}
+              </button>
+            )}
             {!isSavedEdit && savedMeals.length>0 && (
               <button onClick={()=>{ setPickedId(null); setShowPicker(true); }} style={{ ...pill, width:"100%", justifyContent:"center", marginBottom:14 }}>
                 <BookOpen size={16}/> טעינת ארוחה שמורה
@@ -1264,7 +1281,7 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onCopyMeal }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
 
@@ -1312,7 +1329,7 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
               </div>
             </div>
             {list.map(m=><MealCard key={m.id} meal={m} onClick={()=>onViewMeal(m)}
-              onEdit={()=>onEditMeal(m)} onDelete={()=>onDeleteMeal(m.id)}/>)}
+              onEdit={()=>onEditMeal(m)} onDelete={()=>onDeleteMeal(m.id)} onCopy={()=>onCopyMeal(m)}/>)}
             {list.length===0 && (
               <button onClick={()=>onAdd(t)} style={emptyState}>
                 <Plus size={16}/> הוספת {MEAL_TYPES[t].label}
@@ -1779,6 +1796,8 @@ export default function App() {
   const [modalType, setModalType] = useState(null);
   const [detailsMeal, setDetailsMeal] = useState(null);
   const [detailsSaved, setDetailsSaved] = useState(false);
+  const [clipboard, setClipboard] = useState(()=> loadClipboard());
+  const [toast, setToast] = useState("");
   const [editMeal, setEditMeal] = useState(null);
   const [editSavedMeal, setEditSavedMeal] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -1834,6 +1853,9 @@ export default function App() {
     return ()=>{ document.body.style.overflow = ""; };
   },[modal, detailsMeal, editMeal, editSavedMeal, confirmState]);
 
+  // הודעת אישור זמנית ("הועתק"/"הודבק")
+  useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(""),1900); return ()=>clearTimeout(t); },[toast]);
+
   // החלת ערכת הצבעים והמצב הנבחרים (ברירת מחדל: ירוק וכתום + לפי המערכת)
   const effectiveMode = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
   applyPalette((data && data.user && data.user.palette) || "green", effectiveMode);
@@ -1870,6 +1892,20 @@ export default function App() {
     cur.meals.push({ ...meal, id:uid() });
     days[dKey]=cur; return { ...d, days };
   });
+  // העתקת ארוחה ל"לוח" הזמני — ניתן להדביק בכל יום
+  const copyMeal = (meal)=>{
+    const clip = { name:meal.name, emoji:meal.emoji, type:meal.type, ingredients:meal.ingredients,
+      freeText:meal.freeText, nutrition:meal.nutrition, tip:meal.tip, tipGood:meal.tipGood,
+      tipChecked:meal.tipChecked, source:meal.source };
+    saveClipboard(clip); setClipboard(clip);
+    setToast(`״${meal.name||"הארוחה"}״ הועתקה — אפשר להדביק ביום אחר`);
+  };
+  // הדבקת הארוחה המועתקת ליום המוצג
+  const pasteMeal = ()=>{
+    if(!clipboard) return;
+    addMealToDay(clipboard);
+    setToast(`״${clipboard.name||"הארוחה"}״ הודבקה`);
+  };
   const saveMeal = (meal)=> setData(d=>{
     const sm={ id:uid(), name:meal.name, emoji:meal.emoji||mealType(meal.type).emoji,
       type:meal.type, ingredients:meal.ingredients, freeText:meal.freeText,
@@ -1948,7 +1984,7 @@ export default function App() {
           <div key={`${dKey}-${dayDir}`}
             style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
-              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>
+              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onCopyMeal={copyMeal}/>
           </div>
         )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
@@ -1974,6 +2010,7 @@ export default function App() {
       {modal && (
         <AddMealModal savedMeals={data.savedMeals} initialType={modalType} aiConfig={aiConfig}
           defaultIngMode={data.user.ingredientMode || "list"}
+          clipboardMeal={clipboard} onPasteClipboard={()=>{ setModal(false); pasteMeal(); }}
           onClose={()=>setModal(false)}
           onAddToDay={(m)=>{ addMealToDay(m); setModal(false); setTab("daily"); }}
           onSaveMeal={(m)=>{ saveMeal(m); }}/>
@@ -1987,7 +2024,8 @@ export default function App() {
             setDetailsMeal(updated);
             (detailsSaved ? updateSavedMeal : updateMeal)(updated);
           }}
-          onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); (detailsSaved ? setEditSavedMeal : setEditMeal)(m); }}/>
+          onEdit={()=>{ const m=detailsMeal; setDetailsMeal(null); (detailsSaved ? setEditSavedMeal : setEditMeal)(m); }}
+          onCopy={()=>{ const m=detailsMeal; setDetailsMeal(null); copyMeal(m); }}/>
       )}
 
       {editMeal && (
@@ -2008,6 +2046,15 @@ export default function App() {
           confirmLabel={confirmState.confirmLabel}
           onCancel={()=>setConfirmState(null)}
           onConfirm={()=>{ const fn=confirmState.onConfirm; setConfirmState(null); if(fn) fn(); }}/>
+      )}
+
+      {toast && (
+        <div style={{ position:"fixed", left:0, right:0, bottom:92, margin:"0 auto", width:"fit-content",
+          maxWidth:"88%", background:T.ink, color:T.page, padding:"11px 18px", borderRadius:999,
+          fontSize:13.5, fontWeight:500, boxShadow:T.shRaised, zIndex:60, animation:"rise .25s ease",
+          pointerEvents:"none", textAlign:"center" }}>
+          {toast}
+        </div>
       )}
     </div>
   );

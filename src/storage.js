@@ -6,6 +6,7 @@
 const KEY = "beteavon:data:v1";
 const AI_KEY = "beteavon:ai:v1";
 const THEME_KEY = "beteavon:theme:v1";
+const CLIP_KEY = "beteavon:clipboard:v1";
 export const THEME_MODES = ["system", "light", "dark"];
 
 export function loadData() {
@@ -35,6 +36,22 @@ export function loadAIConfig() {
 export function saveAIConfig(cfg) {
   try {
     localStorage.setItem(AI_KEY, JSON.stringify(cfg));
+  } catch {}
+}
+
+export function loadClipboard() {
+  try {
+    const raw = localStorage.getItem(CLIP_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveClipboard(meal) {
+  try {
+    if (meal) localStorage.setItem(CLIP_KEY, JSON.stringify(meal));
+    else localStorage.removeItem(CLIP_KEY);
   } catch {}
 }
 
