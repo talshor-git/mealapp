@@ -478,6 +478,7 @@ function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate
   const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
   const [tipLoading, setTipLoading] = useState(false);
   const [tipError, setTipError] = useState("");
+  const [tipExpanded, setTipExpanded] = useState(false);
   const tipChecked = isTipChecked(meal);
   const checkTip = async ()=>{
     if (!aiConfig?.apiKey) { setTipError("לא הוגדר מפתח API — הוסיפי אותו בעמוד הפרופיל."); return; }
@@ -543,12 +544,15 @@ function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate
               </button>
             </div>
           ) : (meal.tip||"").trim() && (
-            <div style={{ ...card2, marginBottom:16, display:"flex", alignItems:"center", gap:10,
-              background: meal.tipGood ? T.proteinL : T.carbsL,
+            <div onClick={()=>setTipExpanded(v=>!v)} role="button" tabIndex={0}
+              onKeyDown={e=>{ if(e.key==="Enter"||e.key===" ") { e.preventDefault(); setTipExpanded(v=>!v); } }}
+              style={{ ...card2, marginBottom:16, display:"flex", alignItems:tipExpanded?"flex-start":"center", gap:10,
+              background: meal.tipGood ? T.proteinL : T.carbsL, cursor:"pointer",
               border:`1px solid ${meal.tipGood ? T.protein : T.carbs}` }}>
               <span style={{ fontSize:20, flexShrink:0 }}>{meal.tipGood ? "🎉" : "💡"}</span>
               <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:500, color:T.ink,
-                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{meal.tip}</span>
+                whiteSpace: tipExpanded ? "normal" : "nowrap", overflow:"hidden",
+                textOverflow: tipExpanded ? "clip" : "ellipsis", lineHeight:1.5 }}>{meal.tip}</span>
             </div>
           )}
 
