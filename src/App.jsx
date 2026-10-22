@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.49";
+const APP_VERSION = "2.50";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -736,7 +736,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
   // שדה הטקסט החופשי — ~3 שורות כברירת מחדל, גדל עם התוכן עד כ-9 שורות ואז נגלל
   const freeRef = useRef(null);
-  const FREE_MIN = 92, FREE_MAX = 226;
+  const FREE_MIN = 92, FREE_MAX = 293;
   useEffect(()=>{
     const el = freeRef.current;
     if (!el) return;
