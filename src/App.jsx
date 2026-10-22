@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.41";
+const APP_VERSION = "2.42";
 
 // ---- date helpers ----
 const key = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -691,7 +691,8 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   const [manual, setManual] = useState({ calories:"", protein:"", fat:"", carbs:"", health:3 });
   const [savedReminder, setSavedReminder] = useState(false);
   const [savedLib, setSavedLib] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickedId, setPickedId] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [ingMode, setIngMode] = useState(()=>{
     if (initialMeal) {
@@ -821,9 +822,10 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
 
   const loadSaved = (sm)=>{
     // טעינת ארוחה שמורה אינה דורסת את סוג הארוחה שנבחר בחלון (ברירת מחדל לפי השעה)
+    // אחרי בחירה מהבורר חוזרים לשלב 1 עם הרכיבים/הערכים שנטענו — כדי לאפשר עריכה לפני הבדיקה
     setMeal({ ...sm, id:uid(), type: meal.type || sm.type, ingredients: sm.ingredients?.length?sm.ingredients:[{name:"",qty:"",unit:"גרם"}] });
     setIngMode((sm.freeText||"").trim() ? "text" : "list");
-    setSource(sm.source); setShowLibrary(false); setDirty(false); setStep(3);
+    setSource(sm.source); setShowPicker(false); setPickedId(null); setDirty(false); setStep(1);
   };
 
   // שמירה לספריית הארוחות השמורות (זמין גם בעריכה)
@@ -851,6 +853,71 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
     setCopied(true); setTimeout(()=>setCopied(false),1600);
   };
 
+  const exitDialog = exitConfirm && (
+    <ConfirmDialog danger={false} title="לצאת בלי לשמור?"
+      message="השינויים שלא נשמרו יאבדו."
+      confirmLabel="יציאה" cancelLabel="המשך עריכה"
+      onCancel={()=>setExitConfirm(false)}
+      onConfirm={()=>{ setExitConfirm(false); onClose(); }}/>
+  );
+
+  // בורר ארוחות שמורות במסך מלא — בוחרים ארוחה ואז "המשך" כדי לטעון ולערוך
+  if (showPicker) {
+    const picked = savedMeals.find(s=>s.id===pickedId) || null;
+    return (
+      <div style={overlay} onTouchMove={blockBackdropScroll}>
+        <div style={sheet}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <button onClick={()=>{ setShowPicker(false); setPickedId(null); }} aria-label="חזרה" style={iconBtn}>
+                <ArrowRight size={20} color={T.text2}/>
+              </button>
+              <h3 style={{ margin:0, fontSize:19, fontWeight:700, color:T.ink }}>טעינת ארוחה שמורה</h3>
+            </div>
+            <button onClick={requestClose} aria-label="סגירה" style={closeBtn}><X size={22} color={T.text2}/></button>
+          </div>
+
+          <div style={{ overflowY:"auto", flex:1, minHeight:0, overscrollBehavior:"contain",
+            marginTop:14, display:"flex", flexDirection:"column", gap:10 }}>
+            {savedMeals.length===0 && (
+              <div style={{ ...emptyState, cursor:"default", flexDirection:"column", gap:6, padding:"28px 16px" }}>
+                <BookOpen size={26}/><span>אין עדיין ארוחות שמורות. שמרי ארוחה מזרימת ההוספה.</span>
+              </div>
+            )}
+            {savedMeals.map(sm=>{
+              const active = sm.id===pickedId;
+              return (
+                <button key={sm.id} onClick={()=>setPickedId(sm.id)}
+                  style={{ display:"flex", alignItems:"center", gap:10, width:"100%", textAlign:"right",
+                    background:T.surface, borderRadius:16, padding:"12px 14px", cursor:"pointer",
+                    border:`1.5px solid ${active ? "transparent" : T.border}`,
+                    boxShadow: active ? T.shGlow : T.shCard,
+                    outline: active ? `2px solid ${T.rose}` : "none", outlineOffset:2 }}>
+                  <div style={{ width:44, height:44, borderRadius:14, background:T.proteinL, display:"flex",
+                    alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{sm.emoji||"🍽️"}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ margin:0, fontSize:15, fontWeight:500, color:T.ink, overflowWrap:"anywhere" }}>{sm.name}</p>
+                    <p style={{ margin:"3px 0 0", fontSize:12, color:T.text3 }}>
+                      {Math.round(sm.nutrition?.calories||0)} קק״ל · {MEAL_TYPES[sm.type]?.label}
+                    </p>
+                  </div>
+                  {active && <Check size={18} color={T.rose}/>}
+                </button>
+              );
+            })}
+          </div>
+
+          <button disabled={!picked} onClick={()=>picked && loadSaved(picked)}
+            style={{ ...primaryBtn, width:"100%", marginTop:14,
+              opacity:picked?1:.45, cursor:picked?"pointer":"not-allowed" }}>
+            המשך
+          </button>
+        </div>
+        {exitDialog}
+      </div>
+    );
+  }
+
   return (
     <div style={overlay} onTouchMove={blockBackdropScroll}>
       <div style={sheet}>
@@ -875,20 +942,9 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         {step===1 && (
           <div>
             {!isSavedEdit && savedMeals.length>0 && (
-              <button onClick={()=>setShowLibrary(v=>!v)} style={{ ...pill, width:"100%", justifyContent:"center", marginBottom:14 }}>
+              <button onClick={()=>{ setPickedId(null); setShowPicker(true); }} style={{ ...pill, width:"100%", justifyContent:"center", marginBottom:14 }}>
                 <BookOpen size={16}/> טעינת ארוחה שמורה
               </button>
-            )}
-            {showLibrary && (
-              <div style={{ background:T.page, borderRadius:14, padding:10, marginBottom:14, maxHeight:170, overflowY:"auto" }}>
-                {savedMeals.map(sm=>(
-                  <button key={sm.id} onClick={()=>loadSaved(sm)} style={savedRow}>
-                    <span style={{ fontSize:20 }}>{sm.emoji||"🍽️"}</span>
-                    <span style={{ flex:1, textAlign:"right", fontSize:14, color:T.ink }}>{sm.name}</span>
-                    <span style={{ fontSize:12, color:T.text3 }}>{Math.round(sm.nutrition?.calories||0)} קק״ל</span>
-                  </button>
-                ))}
-              </div>
             )}
 
             <label style={lbl}>רכיבים</label>
@@ -1160,13 +1216,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
         </div>
       </div>
 
-      {exitConfirm && (
-        <ConfirmDialog danger={false} title="לצאת בלי לשמור?"
-          message="השינויים שלא נשמרו יאבדו."
-          confirmLabel="יציאה" cancelLabel="המשך עריכה"
-          onCancel={()=>setExitConfirm(false)}
-          onConfirm={()=>{ setExitConfirm(false); onClose(); }}/>
-      )}
+      {exitDialog}
     </div>
   );
 }
