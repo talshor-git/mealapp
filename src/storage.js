@@ -42,15 +42,21 @@ export function saveAIConfig(cfg) {
 export function loadClipboard() {
   try {
     const raw = localStorage.getItem(CLIP_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const clip = JSON.parse(raw);
+    if (!clip || typeof clip.expiresAt !== "number" || clip.expiresAt <= Date.now()) {
+      localStorage.removeItem(CLIP_KEY);
+      return null;
+    }
+    return clip;
   } catch {
     return null;
   }
 }
 
-export function saveClipboard(meal) {
+export function saveClipboard(clip) {
   try {
-    if (meal) localStorage.setItem(CLIP_KEY, JSON.stringify(meal));
+    if (clip) localStorage.setItem(CLIP_KEY, JSON.stringify(clip));
     else localStorage.removeItem(CLIP_KEY);
   } catch {}
 }

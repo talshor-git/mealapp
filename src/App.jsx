@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.48";
+const APP_VERSION = "2.49";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -734,6 +734,17 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
   },[clipboardMeal]);
   const clipSecs = clipboardExpiresAt ? Math.max(0, Math.ceil((clipboardExpiresAt - nowTick)/1000)) : 0;
 
+  // שדה הטקסט החופשי — ~3 שורות כברירת מחדל, גדל עם התוכן עד כ-9 שורות ואז נגלל
+  const freeRef = useRef(null);
+  const FREE_MIN = 92, FREE_MAX = 226;
+  useEffect(()=>{
+    const el = freeRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const border = el.offsetHeight - el.clientHeight;   // כולל שוליים, בגלל box-sizing
+    el.style.height = Math.min(Math.max(el.scrollHeight + border, FREE_MIN), FREE_MAX) + "px";
+  },[meal.freeText, ingMode]);
+
   // האם המשתמשת שינתה משהו מאז פתיחת החלון (לצורך וידוא ביציאה)
   const initialSnapRef = useRef(null);
   if (initialSnapRef.current === null) initialSnapRef.current = JSON.stringify(meal);
@@ -990,9 +1001,10 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
               </button>
             </div>
             {ingMode==="text" ? (
-              <textarea value={meal.freeText||""} onChange={onFreeTextChange}
+              <textarea ref={freeRef} value={meal.freeText||""} onChange={onFreeTextChange}
                 placeholder="לדוגמה: 2 ביצים, 100 גרם שיבולת שועל, כוס חלב…"
-                style={{ ...input, height:96, resize:"none", fontSize:14, lineHeight:1.6 }}/>
+                style={{ ...input, resize:"none", fontSize:14, lineHeight:1.6, overflowY:"auto",
+                  minHeight:FREE_MIN, maxHeight:FREE_MAX }}/>
             ) : (
               <>
                 {meal.ingredients.map((ing,i)=>(
