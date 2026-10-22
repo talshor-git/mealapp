@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.46";
+const APP_VERSION = "2.47";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -146,6 +146,11 @@ const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return
 const startOfWeek = (d) => addDays(d, -d.getDay());
 const isSameDay = (a,b) => key(a)===key(b);
 const uid = () => Math.random().toString(36).slice(2,10);
+
+// ---- UI state (לסשן) — לשמור על אותו מסך גם אחרי רענון/עדכון גרסה ----
+const UI_SESSION_KEY = "beteavon:ui:v1";
+const readUI = ()=>{ try { return JSON.parse(sessionStorage.getItem(UI_SESSION_KEY)) || {}; } catch { return {}; } };
+const writeUI = (patch)=>{ try { sessionStorage.setItem(UI_SESSION_KEY, JSON.stringify({ ...readUI(), ...patch })); } catch {} };
 
 
 // ---- nutrition math ----
@@ -1807,8 +1812,8 @@ function Onboarding({ onDone }) {
 export default function App() {
   const [data, setData] = useState(null);   // null = loading
   const [ready, setReady] = useState(false);
-  const [tab, setTab] = useState("daily");
-  const [date, setDate] = useState(new Date());
+  const [tab, setTab] = useState(()=> readUI().tab || "daily");
+  const [date, setDate] = useState(()=>{ const k = readUI().dateKey; return k ? parseKey(k) : new Date(); });
   const [dayDir, setDayDir] = useState(1);   // כיוון מעבר היום לאנימציה: 1=הבא, -1=הקודם
 
   // מעבר תאריך עם שמירת כיוון התנועה (לאנימציית החלקה עדינה)
@@ -1904,6 +1909,9 @@ export default function App() {
 
   // הודעת אישור זמנית ("הועתק"/"הודבק")
   useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(""),1900); return ()=>clearTimeout(t); },[toast]);
+
+  // שמירת המסך הנוכחי (טאב + תאריך) כדי לחזור אליו אחרי רענון/עדכון גרסה
+  useEffect(()=>{ writeUI({ tab, dateKey: key(date) }); },[tab, date]);
 
   // פקיעת "לוח ההעתקה" אחרי דקה — ניקוי מהזיכרון והאחסון
   useEffect(()=>{
