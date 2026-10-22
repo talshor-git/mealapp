@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.47";
+const APP_VERSION = "2.48";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1815,36 +1815,69 @@ export default function App() {
   const [tab, setTab] = useState(()=> readUI().tab || "daily");
   const [date, setDate] = useState(()=>{ const k = readUI().dateKey; return k ? parseKey(k) : new Date(); });
   const [dayDir, setDayDir] = useState(1);   // כיוון מעבר היום לאנימציה: 1=הבא, -1=הקודם
+  const [navKey, setNavKey] = useState(0);    // מזהה למעבר "תכנותי" — מפעיל אנימציית כניסה
+  const paneRef = useRef(null);               // אלמנט היום, לתזוזה חיה בזמן החלקה
 
   // מעבר תאריך עם שמירת כיוון התנועה (לאנימציית החלקה עדינה)
   const goToDate = (next)=>{
     const nd = new Date(next);
     setDayDir(nd.getTime() >= date.getTime() ? 1 : -1);
+    setNavKey(k=>k+1);
     setDate(nd);
   };
 
-  // מחוות החלקה אופקית על מסך היומן. ב-RTL הימים נעים מימין לשמאל,
-  // ולכן החלקה ימינה = היום הבא (התוכן מחליק פנימה מהשמאל), שמאלה = היום הקודם.
-  const swipeRef = useRef({ x:0, y:0, t:0, active:false });
+  // החלקה אופקית בין ימים עם משוב חי: היום "נגרר" עם האצבע, ובעת שחרור
+  // הוא מחליק למקומו או ליום הסמוך. ב-RTL החלקה ימינה = היום הבא.
+  const dragRef = useRef({ active:false, locked:null, x:0, y:0, t:0, dx:0 });
   const onSwipeStart = (e)=>{
-    if (e.touches.length !== 1) { swipeRef.current.active = false; return; }
+    if (e.touches.length !== 1) { dragRef.current.active = false; return; }
     const t = e.touches[0];
-    if (t.target?.closest?.("input, textarea, select, [data-no-swipe]")) { swipeRef.current.active = false; return; }
-    swipeRef.current = { x:t.clientX, y:t.clientY, t:Date.now(), active:true };
+    if (t.target?.closest?.("input, textarea, select, [data-no-swipe]")) { dragRef.current.active = false; return; }
+    dragRef.current = { active:true, locked:null, x:t.clientX, y:t.clientY, t:Date.now(), dx:0 };
   };
-  const onSwipeEnd = (e)=>{
-    const s = swipeRef.current;
+  const onSwipeMove = (e)=>{
+    const s = dragRef.current;
+    if (!s.active) return;
+    const t = e.touches[0]; if (!t) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (s.locked === null) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) s.locked = "h";
+      else if (Math.abs(dy) > 10) { s.locked = "v"; s.active = false; return; }
+      else return;
+    }
+    if (s.locked !== "h") return;
+    s.dx = dx;
+    const el = paneRef.current;
+    if (el) { el.style.transition = "none"; el.style.transform = `translateX(${dx}px)`; }
+  };
+  const onSwipeEnd = ()=>{
+    const s = dragRef.current;
     if (!s.active) return;
     s.active = false;
-    const t = e.changedTouches && e.changedTouches[0];
-    if (!t) return;
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    const absX = Math.abs(dx), absY = Math.abs(dy);
-    // לא רגיש מדי: מרחק אופקי מובהק, דומיננטיות אופקית, ותנועה מהירה יחסית
-    if (absX < 60) return;
-    if (absX < absY * 1.4) return;
-    if (Date.now() - s.t > 900) return;
-    goToDate(addDays(date, dx > 0 ? 1 : -1));
+    if (s.locked !== "h") return;
+    const el = paneRef.current;
+    const dt = Math.max(1, Date.now() - s.t);
+    const dx = s.dx;
+    const w = (typeof window !== "undefined" && window.innerWidth) || 480;
+    const fast = Math.abs(dx) / dt > 0.5;                 // החלקה מהירה (px/ms)
+    if (Math.abs(dx) < 70 && !fast) {                     // סף לא הושג — חזרה למקום
+      if (el) { el.style.transition = "transform .22s ease"; el.style.transform = "translateX(0px)"; }
+      return;
+    }
+    const dir = dx > 0 ? 1 : -1;                          // ימינה = היום הבא
+    if (el) { el.style.transition = "transform .2s ease"; el.style.transform = `translateX(${dir * w}px)`; }
+    window.setTimeout(()=>{
+      const node = paneRef.current;
+      setDate(addDays(date, dir));
+      if (node) {
+        node.style.transition = "none";
+        node.style.transform = `translateX(${-dir * w}px)`;
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          node.style.transition = "transform .22s ease";
+          node.style.transform = "translateX(0px)";
+        }));
+      }
+    }, 200);
   };
   const [modal, setModal] = useState(false);
   const [modalType, setModalType] = useState(null);
@@ -2045,10 +2078,12 @@ export default function App() {
       <div style={{ background:T.page, animation:"rise .3s ease",
         touchAction: tab==="daily" ? "pan-y" : undefined }}
         onTouchStart={tab==="daily" ? onSwipeStart : undefined}
+        onTouchMove={tab==="daily" ? onSwipeMove : undefined}
         onTouchEnd={tab==="daily" ? onSwipeEnd : undefined}>
         {tab==="daily" && (
-          <div key={`${dKey}-${dayDir}`}
-            style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease" }}>
+          <div key={navKey} ref={paneRef}
+            style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease",
+              willChange:"transform" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
               onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>
           </div>
