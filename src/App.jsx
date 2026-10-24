@@ -29,6 +29,7 @@ const PALETTES = {
     ringTrack: "#EAF1E6", navBg: "rgba(252,255,250,.92)", navIdle: "#A9BCA9",
     overlayBg: "rgba(18,32,22,.42)", starOn: "#E8A33D", starOff: "#DCE8D8",
     over: "#E2891F",
+    water: "#3EC5EC", waterSoft: "#ECF8FD", waterEdge: "#AFD8E6",
     dangerGrad: "linear-gradient(135deg,#E05A4B,#C0392B)", dangerShadow: "0 14px 34px rgba(192,57,43,.3)",
     shCard: "0 6px 16px rgba(20,40,25,.06)",
     shRaised: "0 8px 20px rgba(20,40,25,.07)",
@@ -49,6 +50,7 @@ const PALETTES = {
       ringTrack:"#223026", navBg:"rgba(14,20,15,.92)", navIdle:"#5E7362",
       overlayBg:"rgba(0,0,0,.6)", starOn:"#E8A33D", starOff:"#2A382D",
       over:"#F0B44E", accent:"#6CC46C", accentRing:"rgba(108,196,108,.2)",
+      water:"#57D4F2", waterSoft:"#12313B", waterEdge:"#35606C",
       shCard:"0 6px 16px rgba(0,0,0,.45)", shRaised:"0 8px 20px rgba(0,0,0,.5)",
       shGlow:"0 14px 34px rgba(46,139,61,.35)", shFab:"0 10px 22px rgba(0,0,0,.5)",
       shFrame:"0 0 60px rgba(0,0,0,.35)",
@@ -68,6 +70,7 @@ const PALETTES = {
     ringTrack: "#F3F1F7", navBg: "rgba(255,255,255,.92)", navIdle: "#B7B1C4",
     overlayBg: "rgba(28,24,38,.4)", starOn: "#F5B301", starOff: "#E4E0EA",
     over: "#D6337E",
+    water: "#3EC5EC", waterSoft: "#ECF8FD", waterEdge: "#AFD8E6",
     dangerGrad: "linear-gradient(135deg,#FF5E7E,#D6337E)", dangerShadow: "0 14px 34px rgba(214,51,126,.34)",
     shCard: "0 6px 16px rgba(20,16,31,.05)",
     shRaised: "0 8px 20px rgba(20,16,31,.06)",
@@ -88,6 +91,7 @@ const PALETTES = {
       ringTrack:"#2A2536", navBg:"rgba(18,15,26,.92)", navIdle:"#6A6280",
       overlayBg:"rgba(0,0,0,.62)", starOn:"#F5B301", starOff:"#332D42",
       over:"#FF7EA6", accent:"#FF7EA6", accentRing:"rgba(255,78,126,.2)",
+      water:"#57D4F2", waterSoft:"#152A34", waterEdge:"#3A5A66",
       shCard:"0 6px 16px rgba(0,0,0,.45)", shRaised:"0 8px 20px rgba(0,0,0,.5)",
       shGlow:"0 14px 34px rgba(255,78,126,.35)", shFab:"0 10px 22px rgba(0,0,0,.5)",
       shFrame:"0 0 60px rgba(0,0,0,.35)",
@@ -130,12 +134,16 @@ const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
 const EFFORT_OPTIONS = [["low",null,"נמוך"],["medium",null,"בינוני"],["high",null,"גבוה"]];
 const EFFORT_IDS = EFFORT_OPTIONS.map(o=>o[0]);
 const DEFAULT_EFFORT = "high";
+// יעד שתיית מים יומי — כוס = 200 מ״ל
+const CUP_ML = 200;
+const DEFAULT_WATER_CUPS = 8;
+const MAX_WATER_CUPS = 20;
 const modelHasEffort = (id)=> !!MODEL_OPTIONS.find(m=>m.id===id)?.reasoning;
 const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"];
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.51";
+const APP_VERSION = "2.52";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -258,7 +266,7 @@ function ConfirmDialog({ title, message, confirmLabel="אישור", cancelLabel=
 // ============================================================
 //  THE PLATE — dual ring (outer: calories vs goal, inner: macros)
 // ============================================================
-function Plate({ totals, goal }) {
+function Plate({ totals, goal, health }) {
   const consumed = Math.round(totals.calories);
   const ratio = goal ? consumed/goal : 0;
   const R_OUT = 82, R_IN = 60, C_OUT = 2*Math.PI*R_OUT, C_IN = 2*Math.PI*R_IN;
@@ -298,6 +306,8 @@ function Plate({ totals, goal }) {
           acc += s.len; return el;
         })}
       </svg>
+      {/* דירוג בריאות היום — בפינה השמאלית העליונה של כרטיס הקלוריות */}
+      <div style={{ position:"absolute", top:0, left:0 }}><Stars value={health} size={15}/></div>
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
         <span style={{ fontSize:34, fontWeight:700, color:T.ink, lineHeight:1 }}>{consumed}</span>
         <span style={{ fontSize:12, color:T.text3, marginTop:2 }}>מתוך {goal} קק״ל</span>
@@ -309,7 +319,7 @@ function Plate({ totals, goal }) {
 // ============================================================
 //  BARS — תצוגה חלופית: קלוריות שנותרו + פס מקטעים
 // ============================================================
-function Bars({ totals, goal }) {
+function Bars({ totals, goal, health }) {
   const [sel, setSel] = useState(null);   // 'protein' | 'carbs' | 'fat' | null
   const consumed = Math.round(totals.calories || 0);
   const g = Math.round(goal || 0);
@@ -330,13 +340,19 @@ function Bars({ totals, goal }) {
 
   return (
     <div style={{ width:"100%", maxWidth:360, background:T.surface, borderRadius:20, padding:"18px 18px 16px", boxShadow:T.shCard }}>
-      <p style={{ margin:0, fontSize:13, color:T.text3 }}>{over ? "מעל היעד" : "נותרו היום"}</p>
-      <p style={{ margin:"4px 0 0", display:"flex", alignItems:"baseline", gap:6 }}>
-        <span style={{ fontSize:42, fontWeight:700, color:over?T.over:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
-          {(over ? consumed-g : remaining).toLocaleString("he-IL")}
-        </span>
-        <span style={{ fontSize:15, fontWeight:500, color:T.text3 }}>קק״ל</span>
-      </p>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
+        <div style={{ minWidth:0 }}>
+          <p style={{ margin:0, fontSize:13, color:T.text3 }}>{over ? "מעל היעד" : "נותרו היום"}</p>
+          <p style={{ margin:"4px 0 0", display:"flex", alignItems:"baseline", gap:6 }}>
+            <span style={{ fontSize:42, fontWeight:700, color:over?T.over:T.ink, lineHeight:1, letterSpacing:"-0.5px" }}>
+              {(over ? consumed-g : remaining).toLocaleString("he-IL")}
+            </span>
+            <span style={{ fontSize:15, fontWeight:500, color:T.text3 }}>קק״ל</span>
+          </p>
+        </div>
+        {/* דירוג בריאות היום — בפינה השמאלית העליונה שבתוך כרטיס הקלוריות */}
+        <div style={{ paddingTop:2, flexShrink:0 }}><Stars value={health} size={16}/></div>
+      </div>
 
       {/* פס המקטעים — כל צבע ניתן ללחיצה לפירוט מספרי */}
       <div style={{ display:"flex", height:22, borderRadius:999, overflow:"hidden", background:T.border, marginTop:14 }}>
@@ -389,6 +405,51 @@ function Stars({ value, size=18, onChange }) {
           onClick={onChange ? ()=>onChange(i) : undefined}
           style={{ cursor:onChange?"pointer":"default", color:i<=full?T.starOn:T.starOff, fill:i<=full?T.starOn:"none" }}/>
       ))}
+    </div>
+  );
+}
+
+// כוס מים — לחיצה ממלאת/מרוקנת. נראית טוב גם במצב בהיר וגם בכהה (טוקנים water/waterSoft/waterEdge)
+function CupButton({ filled, onClick, label }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} aria-pressed={filled}
+      style={{ background:"none", border:"none", padding:0, cursor:"pointer", lineHeight:0,
+        WebkitTapHighlightColor:"transparent" }}>
+      <svg width="24" height="30" viewBox="0 0 24 30" aria-hidden="true" style={{ display:"block" }}>
+        <path d="M5 5.2h14l-1.55 19.4a2.4 2.4 0 0 1-2.4 2.2h-6.1a2.4 2.4 0 0 1-2.4-2.2z"
+          fill={filled ? "url(#cupWater)" : T.waterSoft}
+          stroke={filled ? T.water : T.waterEdge} strokeWidth="1.6" strokeLinejoin="round"/>
+        <path d="M4.1 5.2h15.8" stroke={filled ? T.water : T.waterEdge} strokeWidth="1.6" strokeLinecap="round"/>
+        {filled && <path d="M6.7 9.2h10.6" stroke="#fff" strokeOpacity="0.5" strokeWidth="1.5" strokeLinecap="round"/>}
+      </svg>
+    </button>
+  );
+}
+
+// מעקב שתייה יומי — מספר הכוסות שהוגדר בהגדרות (ברירת מחדל 8)
+function WaterCups({ count, goal, onSet }) {
+  const g = Math.min(MAX_WATER_CUPS, Math.max(1, goal || DEFAULT_WATER_CUPS));
+  const c = Math.min(Math.max(count || 0, 0), g);
+  return (
+    <div style={{ width:"100%", display:"flex", flexDirection:"column", alignItems:"center", gap:9 }}>
+      <svg width="0" height="0" style={{ position:"absolute" }} aria-hidden="true">
+        <defs>
+          <linearGradient id="cupWater" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={T.water} stopOpacity="0.7"/>
+            <stop offset="100%" stopColor={T.water}/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"center", gap:7, maxWidth:340 }}>
+        {Array.from({ length:g }, (_,i)=>(
+          <CupButton key={i} filled={i < c}
+            onClick={()=> onSet && onSet(i+1 === c ? i : i+1)}
+            label={`כוס מים ${i+1} מתוך ${g}`}/>
+        ))}
+      </div>
+      <p style={{ margin:0, fontSize:12, color:T.text3 }}>
+        {c}/{g} כוסות · {(c*CUP_ML).toLocaleString("he-IL")} מתוך {(g*CUP_ML).toLocaleString("he-IL")} מ״ל
+      </p>
     </div>
   );
 }
@@ -1309,9 +1370,11 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onSetWater }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
+  const waterGoal = Math.min(MAX_WATER_CUPS, Math.max(1, user.waterCups || DEFAULT_WATER_CUPS));
+  const waterCount = Math.min(Math.max(day?.water || 0, 0), waterGoal);
 
   return (
     <div style={{ padding:"0 18px 120px" }}>
@@ -1326,15 +1389,16 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
       {/* the plate / bars */}
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"12px 0 18px" }}>
         {user.chartStyle==="bars" ? (
-          <Bars totals={totals} goal={goals.calories}/>
+          <Bars totals={totals} goal={goals.calories} health={totals.health}/>
         ) : (
           <>
-            <Plate totals={totals} goal={goals.calories}/>
+            <Plate totals={totals} goal={goals.calories} health={totals.health}/>
             <RemainingCaption totals={totals} goal={goals.calories}/>
           </>
         )}
         <MacroLegend totals={totals} goals={goals}/>
-        <Stars value={totals.health}/>
+        {/* מעקב שתייה — מספר הכוסות שהוגדר בהגדרות */}
+        <WaterCups count={waterCount} goal={waterGoal} onSet={onSetWater}/>
       </div>
 
       {/* meals by type */}
@@ -1570,6 +1634,7 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
   const fileRef = useRef();
   // היעד הנוכחי (של היום) — מהציר, עם נפילה לשדות הישנים
   const curGoals = goalsForDate(user, key(new Date()));
+  const waterCups = Math.min(MAX_WATER_CUPS, Math.max(1, user.waterCups || DEFAULT_WATER_CUPS));
   // טיוטה מקומית ליעדים — נשמרת רק אחרי אישור
   const [draft, setDraft] = useState(curGoals);
   const [confirmGoals, setConfirmGoals] = useState(false);
@@ -1662,7 +1727,7 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
 
       <Section
         title="העדפות"
-        summary={`${paletteLabel} · ${chartLabel} · ${ingredientLabel} · ${themeLabel}`}>
+        summary={`${paletteLabel} · ${chartLabel} · ${ingredientLabel} · ${themeLabel} · ${waterCups} כוסות`}>
         <label style={{ ...lbl, marginBottom:6 }}>תצוגת סיכום יומי</label>
         <Segmented options={[["ring","🍩","גלגל"],["bars","📊","פסים"]]}
           value={user.chartStyle||"ring"} onChange={v=>setUser({ ...user, chartStyle:v })}/>
@@ -1679,6 +1744,25 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
 
         <label style={{ ...lbl, marginTop:14, marginBottom:6 }}>מצב תצוגה</label>
         <Segmented options={THEME_OPTIONS} value={themeMode} onChange={onSetTheme}/>
+
+        <label style={{ ...lbl, marginTop:16, marginBottom:6 }}>כוסות מים ביום</label>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button type="button" aria-label="הפחתת כוס מים"
+            onClick={()=>setUser({ ...user, waterCups: Math.max(1, waterCups-1) })}
+            style={{ width:42, height:42, borderRadius:13, border:"none", background:T.pillBg, color:T.ink,
+              fontSize:22, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+          <div style={{ flex:1, textAlign:"center" }}>
+            <span style={{ fontSize:20, fontWeight:700, color:T.ink }}>{waterCups}</span>
+            <span style={{ fontSize:13, color:T.text2 }}> כוסות</span>
+            <p style={{ margin:"2px 0 0", fontSize:11, color:T.text3 }}>
+              כוס = 200 מ״ל · {(waterCups*CUP_ML).toLocaleString("he-IL")} מ״ל ביום
+            </p>
+          </div>
+          <button type="button" aria-label="הוספת כוס מים"
+            onClick={()=>setUser({ ...user, waterCups: Math.min(MAX_WATER_CUPS, waterCups+1) })}
+            style={{ width:42, height:42, borderRadius:13, border:"none", background:T.pillBg, color:T.ink,
+              fontSize:22, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+        </div>
       </Section>
 
       <Section
@@ -2003,6 +2087,13 @@ export default function App() {
     cur.meals.push({ ...meal, id:uid() });
     days[dKey]=cur; return { ...d, days };
   });
+  // עדכון מספר כוסות המים שתויה ביום המוצג
+  const setWater = (count)=> setData(d=>{
+    const days={ ...d.days };
+    const cur=days[dKey]?{ ...days[dKey] }:{ meals:[] };
+    cur.water = Math.min(MAX_WATER_CUPS, Math.max(0, Math.round(count)||0));
+    days[dKey]=cur; return { ...d, days };
+  });
   // העתקת ארוחה ל"לוח" הזמני — ניתן להדביק בכל יום, למשך דקה בלבד
   const copyMeal = (meal)=>{
     const clip = { meal: { name:meal.name, emoji:meal.emoji, type:meal.type, ingredients:meal.ingredients,
@@ -2097,7 +2188,7 @@ export default function App() {
             style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease",
               willChange:"transform" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
-              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal}/>
+              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onSetWater={setWater}/>
           </div>
         )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
