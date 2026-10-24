@@ -135,7 +135,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.50";
+const APP_VERSION = "2.51";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -639,7 +639,7 @@ const normalize = (o)=>({
   calories:Math.round(+o.calories||0), protein:Math.round(+o.protein||0),
   fat:Math.round(+o.fat||0), carbs:Math.round(+o.carbs||0),
   health:Math.min(5,Math.max(1,Math.round(+o.health||3))),
-  tip: typeof o.tip === "string" ? o.tip.trim().replace(/\s+/g," ").slice(0,80) : "",
+  tip: typeof o.tip === "string" ? o.tip.trim().replace(/\s+/g," ") : "",
   tipGood: o.tipGood === true || o.tipGood === "true",
 });
 
@@ -678,13 +678,13 @@ tip: טיפ מעשי אחד ויחיד לשיפור הבריאותיות של ה
 
 function parseTip(text) {
   const clean = (text||"").replace(/```json|```/g,"").trim();
-  const cleanTip = (t)=> typeof t === "string" ? t.trim().replace(/\s+/g," ").slice(0,80) : "";
+  const cleanTip = (t)=> typeof t === "string" ? t.trim().replace(/\s+/g," ") : "";
   try {
     const o = JSON.parse(clean);
     return { tip: cleanTip(o.tip), tipGood: o.tipGood === true || o.tipGood === "true" };
   } catch {
     const m = clean.match(/tip["']?\s*[:=]\s*"([^"\n}]+)"/i) || clean.match(/הערה[^:"}]*["']?\s*[:=]\s*"([^"\n}]+)"/i);
-    return { tip: m ? m[1].trim().replace(/\s+/g," ").slice(0,80) : "", tipGood: /tipGood["']?\s*[:=]\s*true/i.test(clean) };
+    return { tip: m ? m[1].trim().replace(/\s+/g," ") : "", tipGood: /tipGood["']?\s*[:=]\s*true/i.test(clean) };
   }
 }
 
