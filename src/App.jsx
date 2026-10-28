@@ -3,7 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text, Send, Loader2, RefreshCw, KeyRound, Share2,
+  ListChecks, Text, Send, Loader2, RefreshCw, KeyRound, Share2, Image as ImageIcon,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig, loadTheme, saveTheme, loadClipboard, saveClipboard } from "./storage.js";
 import { sendToModel } from "./ai.js";
@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.55";
+const APP_VERSION = "2.56";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -728,11 +728,20 @@ function buildAnalysisPrompt(date, days, user, goals) {
   };
 
   const lines = [];
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  const isToday = isSameDay(date, now);
   lines.push("אתה מומחה לתזונה. אני משתף אותך בנתוני יומן האכילה שלי כדי שתנתח את היום המסומן כ״היום המבוקש״.");
   lines.push(`היום המבוקש לניתוח: ${dayStr(date)}.`);
   lines.push(`היעדים היומיים שלי: ${n(goals.calories)} קק״ל, חלבון ${n(goals.protein)} ג׳, פחמימות ${n(goals.carbs)} ג׳, שומן ${n(goals.fat)} ג׳.`);
+  lines.push(`זמן הייצוא (מתי שיתפתי אותך): ${dayStr(now)}, בשעה ${hhmm}.`);
+  lines.push(`היום המבוקש ${isToday ? "הוא היום הנוכחי — ייתכן שטרם הסתיים" : "הוא יום שכבר עבר"}.`);
   lines.push("");
   lines.push("חשוב: לא כל הימים שצירפתי מלאים. חלק מהימים חלקיים, וייתכנו ימים שנזנחו או שהוזנו בהם מעט מאוד ארוחות (או כלום). השתמש בשיקול דעתך כדי להבחין בין ימים שמייצגים תזונה אמיתית לבין ימים חסרים/נטושים, ואל תסיק מסקנות מטעות מימים חלקיים. התמקד בניתוח של היום המבוקש, אך התחשב במגמות ובהקשר של שאר הימים.");
+  if (isToday) {
+    lines.push("");
+    lines.push("חשוב גם להתחשב בשעה שבה שיתפתי אותך ובהשלכותיה: אם השעה היא אמצע היום (או מוקדם יותר), זה תקין וייתכנו ארוחות שטרם נאכלו — אל תסיק שהתזונה חסרה שהרי היום עוד לא נגמר. כמו כן, לעיתים אני מזין ארוחות מראש כחלק מתכנון היום (למשל ארוחת ערב או ארוחה עתידית), ולכן הן עשויות להופיע ביומן למרות שטרם נאכלו — אל תניח שכבר השלמתי לאכול את הכול. נשנושים אינם כרוכים במסגרת זמנים קבועה: ייתכן שתוכננו מראש וייתכן שנאכלו — התייחס אליהם בהתאם.");
+  }
   lines.push("");
   lines.push(`--- נתוני ${window7.length} הימים האחרונים (${windowLabel}) ---`);
   window7.forEach(d=> dayLines(d).forEach(l=> lines.push(l)));
@@ -740,6 +749,140 @@ function buildAnalysisPrompt(date, days, user, goals) {
   lines.push("");
   lines.push("בבקשה נתח את התזונה שלי ליום המבוקש: מה טוב ומה היה יכול להיות טוב יותר. התייחס לסך הקלוריות מול היעד, לאיזון שבין החלבון, הפחמימות והשומן, למגוון ולאיכות הארוחות — ותן טיפים מעשיים וקצרים.");
   return lines.join("\n");
+}
+
+// ציור כרטיס תמונה מסודר של סיכום היום — לקראת שיתוף לחבר (PNG)
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rad = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rad, y);
+  ctx.arcTo(x+w, y, x+w, y+h, rad);
+  ctx.arcTo(x+w, y+h, x, y+h, rad);
+  ctx.arcTo(x, y+h, x, y, rad);
+  ctx.arcTo(x, y, x+w, y, rad);
+  ctx.closePath();
+}
+
+function ellipsize(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+
+async function drawDayImage(day, date, user, goals) {
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch {}
+  const n = (v)=> Math.round(v||0);
+  const meals = day?.meals || [];
+  const totals = dayTotals(day);
+
+  const W = 1080, PAD = 60, INNER = W - PAD*2;
+  const BANNER = 300;
+  const CARD_TOP = BANNER - 56, CARD_H = 300;
+  const GROUP_LABEL_H = 60, ROW_H = 96, GROUP_GAP = 26;
+  let mealsH = 0;
+  TYPE_ORDER.forEach(t=>{ const c = meals.filter(m=>m.type===t).length; if (c) mealsH += GROUP_LABEL_H + c*ROW_H + GROUP_GAP; });
+  const FOOTER_H = 92;
+  const H = Math.round(CARD_TOP + CARD_H + 44 + mealsH + FOOTER_H);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.direction = "rtl";
+  ctx.textBaseline = "alphabetic";
+  const font = (w,s)=> `${w} ${s}px Heebo, "Segoe UI", system-ui, sans-serif`;
+  const emojiFont = (s)=> `${s}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  const right = W - PAD, center = W/2;
+
+  // רקע
+  ctx.fillStyle = T.page; ctx.fillRect(0, 0, W, H);
+
+  // באנר עליון עם מעבר צבע
+  const g = ctx.createLinearGradient(0, 0, W, BANNER);
+  g.addColorStop(0, T.coral); g.addColorStop(0.5, T.rose); g.addColorStop(1, T.violet);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, BANNER);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.font = font(500, 30);
+  ctx.fillText("בְּתֵאָבוֹן", right, 64);
+  ctx.fillStyle = "#fff"; ctx.font = font(700, 48);
+  ctx.fillText(`${HE_DAYS[date.getDay()]}, ${date.getDate()} ב${HE_MONTHS[date.getMonth()]} ${date.getFullYear()}`, right, 152);
+  ctx.font = font(400, 30); ctx.fillStyle = "rgba(255,255,255,.92)";
+  ctx.fillText("סיכום תזונתי יומי", right, 206);
+
+  // כרטיס סיכום
+  roundRectPath(ctx, PAD, CARD_TOP, INNER, CARD_H, 36);
+  ctx.fillStyle = T.surface; ctx.fill();
+  ctx.strokeStyle = T.border; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.textAlign = "right"; ctx.fillStyle = T.text3; ctx.font = font(500, 26);
+  ctx.fillText("סה״כ נצרך היום", right - 36, CARD_TOP + 60);
+
+  const calStr = n(totals.calories).toLocaleString("he-IL");
+  ctx.fillStyle = T.ink; ctx.font = font(700, 78);
+  ctx.fillText(calStr, right - 36, CARD_TOP + 142);
+  const calW = ctx.measureText(calStr).width;
+  ctx.fillStyle = T.text3; ctx.font = font(500, 30);
+  ctx.fillText(`/ ${n(goals.calories)} קק״ל`, right - 36 - calW - 14, CARD_TOP + 142);
+
+  const macros = [
+    { label:"חלבון",   color:T.protein, val:totals.protein, goal:goals.protein },
+    { label:"פחמימות", color:T.carbs,   val:totals.carbs,   goal:goals.carbs },
+    { label:"שומן",    color:T.fat,     val:totals.fat,     goal:goals.fat },
+  ];
+  const colW = INNER/3, mY = CARD_TOP + 226;
+  macros.forEach((m,i)=>{
+    const cx = right - colW*(i + 0.5);
+    ctx.textAlign = "center";
+    ctx.fillStyle = m.color; ctx.font = font(700, 38);
+    ctx.fillText(`${n(m.val)} ג׳`, cx, mY);
+    ctx.fillStyle = T.text3; ctx.font = font(400, 22);
+    ctx.fillText(`${m.label} · יעד ${n(m.goal)}`, cx, mY + 32);
+  });
+  if (day?.water) {
+    ctx.textAlign = "center"; ctx.fillStyle = T.text2; ctx.font = font(500, 24);
+    ctx.fillText(`💧 שתייה: ${n(day.water)} כוסות`, center, CARD_TOP + 286);
+  }
+
+  // ארוחות
+  let y = CARD_TOP + CARD_H + 44;
+  TYPE_ORDER.forEach(t=>{
+    const list = meals.filter(m=>m.type===t);
+    if (!list.length) return;
+    ctx.textAlign = "right"; ctx.fillStyle = T.rose; ctx.font = font(700, 30);
+    ctx.fillText(MEAL_TYPES[t].label, right, y + 36);
+    y += GROUP_LABEL_H;
+    list.forEach(m=>{
+      const nn = m.nutrition || {};
+      const box = 76, bx = right - box;
+      roundRectPath(ctx, bx, y + 6, box, box, 22);
+      ctx.fillStyle = T.proteinL; ctx.fill();
+      ctx.textAlign = "center"; ctx.fillStyle = "#000"; ctx.font = emojiFont(40);
+      ctx.fillText(m.emoji || MEAL_TYPES[t].emoji, bx + box/2, y + 6 + box/2 + 14);
+      ctx.textAlign = "right";
+      ctx.fillStyle = T.ink; ctx.font = font(600, 32);
+      const nameX = bx - 18;
+      const maxName = nameX - (PAD + 150);
+      ctx.fillText(ellipsize(ctx, m.name || MEAL_TYPES[t].label, maxName), nameX, y + 42);
+      ctx.fillStyle = T.text3; ctx.font = font(400, 24);
+      ctx.fillText(`חלבון ${n(nn.protein)} · פחמ׳ ${n(nn.carbs)} · שומן ${n(nn.fat)}`, nameX, y + 76);
+      ctx.textAlign = "left"; ctx.fillStyle = T.ink; ctx.font = font(700, 34);
+      ctx.fillText(`${n(nn.calories)}`, PAD, y + 42);
+      ctx.fillStyle = T.text3; ctx.font = font(400, 20);
+      ctx.fillText("קק״ל", PAD, y + 72);
+      y += ROW_H;
+    });
+    y += GROUP_GAP;
+  });
+
+  // כותרת תחתונה
+  ctx.textAlign = "center"; ctx.fillStyle = T.text3; ctx.font = font(400, 22);
+  ctx.fillText(`נוצר באפליקציית בְּתֵאָבוֹן · ${key(date)}`, center, H - 40);
+
+  return await new Promise((res, rej)=>{
+    try { canvas.toBlob((b)=> b ? res(b) : rej(new Error("no blob")), "image/png"); }
+    catch (e) { rej(e); }
+  });
 }
 
 function parseNutrition(text) {
@@ -1439,7 +1582,7 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onSetWater, onCopyDay }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onSetWater, onCopyDay, onShareImage }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
   const hasMeals = meals.length > 0;
@@ -1501,12 +1644,17 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
         );
       })}
 
-      {/* שיתוף היום לניתוח חיצוני — בתחתית המסך, אחרי גלילת הארוחות */}
+      {/* שיתוף היום לחבר / לניתוח חיצוני — בתחתית המסך, אחרי גלילת הארוחות */}
       <div style={{ marginTop:6, paddingTop:20, borderTop:`1px solid ${T.border}`,
         display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
         <p style={{ margin:0, fontSize:12.5, color:T.text3, textAlign:"center", maxWidth:320, lineHeight:1.5 }}>
-          רוצה משוב על התזונה של היום? שתפי אותו עם מודל תזונה חיצוני וקבלי ניתוח של מה טוב ומה אפשר לשפר.
+          רוצה לשתף את היום? אפשר לשלוח תמונה מסודרת של הסיכום לחבר, או לשתף את הנתונים עם מודל תזונה חיצוני לניתוח.
         </p>
+        <button onClick={onShareImage} disabled={!hasMeals}
+          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
+            cursor: hasMeals ? "pointer" : "default" }}>
+          <ImageIcon size={16}/> שיתוף תמונת היום
+        </button>
         <button onClick={onCopyDay} disabled={!hasMeals}
           style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
             cursor: hasMeals ? "pointer" : "default" }}>
@@ -2160,6 +2308,28 @@ export default function App() {
     setToast(ok ? "הועתק — אפשר להדביק במודל לניתוח תזונתי" : "ההעתקה נכשלה, נסי שוב");
   };
 
+  // שיתוף תמונת סיכום היום לחבר — פותח את גיליון השיתוף (iOS/אנדרואיד), עם נפילה להורדה
+  const shareDayImage = async ()=>{
+    const dayObj = data.days[dKey];
+    if (!(dayObj?.meals||[]).length) { setToast("אין ארוחות לשיתוף ביום זה"); return; }
+    try {
+      const blob = await drawDayImage(dayObj, date, data.user, goals);
+      const file = new File([blob], `beteavon-${dKey}.png`, { type:"image/png" });
+      if (navigator.canShare && navigator.canShare({ files:[file] })) {
+        await navigator.share({ files:[file], title:"סיכום היום · בְּתֵאָבוֹן" });
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `beteavon-${dKey}.png`; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      setToast("התמונה הורדה — אפשר לשלוח אותה לחבר");
+    } catch (err) {
+      if (err && err.name === "AbortError") return;   // המשתמשת ביטלה את גיליון השיתוף
+      setToast("יצירת התמונה נכשלה, נסי שוב");
+    }
+  };
+
   // שינוי יעד — יוצר/מעדכן את גרסת היום בציר, ומסנכרן את השדות הישנים
   const setGoal = (patch)=> setData(d=>{
     if(!d?.user) return d;
@@ -2280,7 +2450,7 @@ export default function App() {
               willChange:"transform" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
               onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onSetWater={setWater}
-              onCopyDay={copyDayForAI}/>
+              onCopyDay={copyDayForAI} onShareImage={shareDayImage}/>
           </div>
         )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
