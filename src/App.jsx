@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.52";
+const APP_VERSION = "2.53";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -671,6 +671,53 @@ tip: טיפ מעשי אחד ויחיד לשיפור הבריאותיות של ה
 אם הארוחה מאוזנת ובריאה ממילא — החזר tipGood=true ו-tip קצר של עידוד בלבד (למשל "יישר כוח! ארוחה מאוזנת"). אחרת tipGood=false.
 סוג הארוחה: ${typeLabel}
 רכיבים: ${list}`;
+}
+
+// העתקת טקסט ללוח — עם נפילה לאחור (execCommand) לדפדפנים/הקשרים ללא Clipboard API
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch { return false; }
+}
+
+// פרומפט לייבוא ליומן האכילה של יום שלם — לשליחה למודל חיצוני (למשל Gemini) לניתוח תזונתי
+function buildDayPrompt(date, day, user, goals) {
+  const meals = day?.meals || [];
+  const totals = dayTotals(day);
+  const n = (v)=> Math.round(v||0);
+  const dateStr = `${HE_DAYS[date.getDay()]}, ${date.getDate()} ב${HE_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  const lines = [];
+  lines.push(`אתה מומחה לתזונה. לפניך יומן האכילה שלי ליום ${dateStr}.`);
+  lines.push(`היעדים היומיים שלי: ${n(goals.calories)} קק״ל, חלבון ${n(goals.protein)} ג׳, פחמימות ${n(goals.carbs)} ג׳, שומן ${n(goals.fat)} ג׳.`);
+  lines.push(`סה״כ נצרך היום: ${n(totals.calories)} קק״ל, חלבון ${n(totals.protein)} ג׳, פחמימות ${n(totals.carbs)} ג׳, שומן ${n(totals.fat)} ג׳.`);
+  if (totals.healthN) lines.push(`דירוג בריאותיות ממוצע לארוחות: ${totals.health.toFixed(1)} מתוך 5.`);
+  lines.push("");
+  lines.push("הארוחות:");
+  TYPE_ORDER.forEach(t=>{
+    const list = meals.filter(m=>m.type===t);
+    if (!list.length) return;
+    lines.push(`${MEAL_TYPES[t].label}:`);
+    list.forEach(m=>{
+      const nn = m.nutrition || {};
+      const ing = (m.freeText||"").trim()
+        ? m.freeText.trim()
+        : (m.ingredients||[]).filter(i=>(i.name||"").trim())
+            .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
+      const meta = `${n(nn.calories)} קק״ל (חלבון ${n(nn.protein)} ג׳, פחמימות ${n(nn.carbs)} ג׳, שומן ${n(nn.fat)} ג׳)`;
+      lines.push(`- ${m.name || MEAL_TYPES[t].label}${ing ? ` — ${ing}` : ""} — ${meta}`);
+    });
+  });
+  lines.push("");
+  lines.push("בבקשה נתח את התזונה שלי ליום הזה: מה טוב ומה היה יכול להיות טוב יותר. התייחס לסך הקלוריות מול היעד, לאיזון שבין החלבון, הפחמימות והשומן, למגוון ולאיכות הארוחות — ותן טיפים מעשיים וקצרים.");
+  return lines.join("\n");
 }
 
 function parseNutrition(text) {
@@ -1370,9 +1417,10 @@ function WeekStrip({ date, setDate }) {
 // ============================================================
 //  DAILY VIEW
 // ============================================================
-function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onSetWater }) {
+function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onViewMeal, onEditMeal, onSetWater, onCopyDay }) {
   const totals = dayTotals(day);
   const meals = day?.meals || [];
+  const hasMeals = meals.length > 0;
   const waterGoal = Math.min(MAX_WATER_CUPS, Math.max(1, user.waterCups || DEFAULT_WATER_CUPS));
   const waterCount = Math.min(Math.max(day?.water || 0, 0), waterGoal);
 
@@ -1399,6 +1447,11 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
         <MacroLegend totals={totals} goals={goals}/>
         {/* מעקב שתייה — מספר הכוסות שהוגדר בהגדרות */}
         <WaterCups count={waterCount} goal={waterGoal} onSet={onSetWater}/>
+        <button onClick={onCopyDay} disabled={!hasMeals}
+          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
+            cursor: hasMeals ? "pointer" : "default" }}>
+          <Sparkles size={16}/> העתקת היום ל-Gemini
+        </button>
       </div>
 
       {/* meals by type */}
@@ -2069,6 +2122,14 @@ export default function App() {
   // היעד התקף לתאריך המוצג (לא בהכרח היום)
   const goals = goalsForDate(data.user, dKey);
 
+  // העתקת יומן היום כפרומפט מוכן לניתוח תזונתי במודל חיצוני (Gemini וכו')
+  const copyDayForAI = async ()=>{
+    const dayObj = data.days[dKey];
+    if (!(dayObj?.meals||[]).length) { setToast("אין ארוחות להעתקה ביום זה"); return; }
+    const ok = await copyText(buildDayPrompt(date, dayObj, data.user, goals));
+    setToast(ok ? "היום הועתק — אפשר להדביק ב-Gemini" : "ההעתקה נכשלה, נסי שוב");
+  };
+
   // שינוי יעד — יוצר/מעדכן את גרסת היום בציר, ומסנכרן את השדות הישנים
   const setGoal = (patch)=> setData(d=>{
     if(!d?.user) return d;
@@ -2188,7 +2249,8 @@ export default function App() {
             style={{ animation: dayDir > 0 ? "dayInNext .26s ease" : "dayInPrev .26s ease",
               willChange:"transform" }}>
             <DailyView date={date} setDate={goToDate} day={day} user={data.user} goals={goals}
-              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onSetWater={setWater}/>
+              onAdd={openAdd} onDeleteMeal={requestDeleteMeal} onViewMeal={(m)=>{ setDetailsSaved(false); setDetailsMeal(m); }} onEditMeal={setEditMeal} onSetWater={setWater}
+              onCopyDay={copyDayForAI}/>
           </div>
         )}
         {tab==="calendar" && <CalendarView days={data.days} user={data.user}
