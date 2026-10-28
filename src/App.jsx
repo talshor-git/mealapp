@@ -3,7 +3,7 @@ import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
   Star, Trash2, Download, Upload, ArrowRight, ArrowLeft, Pencil, Save,
-  ListChecks, Text, Send, Loader2, RefreshCw, KeyRound,
+  ListChecks, Text, Send, Loader2, RefreshCw, KeyRound, Share2,
 } from "lucide-react";
 import { loadData, saveData, loadAIConfig, saveAIConfig, loadTheme, saveTheme, loadClipboard, saveClipboard } from "./storage.js";
 import { sendToModel } from "./ai.js";
@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.53";
+const APP_VERSION = "2.54";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -688,35 +688,57 @@ async function copyText(text) {
   } catch { return false; }
 }
 
-// פרומפט לייבוא ליומן האכילה של יום שלם — לשליחה למודל חיצוני (למשל Gemini) לניתוח תזונתי
-function buildDayPrompt(date, day, user, goals) {
-  const meals = day?.meals || [];
-  const totals = dayTotals(day);
+// פרומפט לשיתוף נתוני השבוע — הנחיה למודל חיצוני לנתח את היום המבוקש תוך התחשבות בשאר השבוע.
+// הסינון של ימים חלקיים/נטושים נעשה על ידי המודל עצמו (לפי ההנחיה), לא באפליקציה.
+function buildAnalysisPrompt(date, days, user, goals) {
   const n = (v)=> Math.round(v||0);
-  const dateStr = `${HE_DAYS[date.getDay()]}, ${date.getDate()} ב${HE_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
-  const lines = [];
-  lines.push(`אתה מומחה לתזונה. לפניך יומן האכילה שלי ליום ${dateStr}.`);
-  lines.push(`היעדים היומיים שלי: ${n(goals.calories)} קק״ל, חלבון ${n(goals.protein)} ג׳, פחמימות ${n(goals.carbs)} ג׳, שומן ${n(goals.fat)} ג׳.`);
-  lines.push(`סה״כ נצרך היום: ${n(totals.calories)} קק״ל, חלבון ${n(totals.protein)} ג׳, פחמימות ${n(totals.carbs)} ג׳, שומן ${n(totals.fat)} ג׳.`);
-  if (totals.healthN) lines.push(`דירוג בריאותיות ממוצע לארוחות: ${totals.health.toFixed(1)} מתוך 5.`);
-  lines.push("");
-  lines.push("הארוחות:");
-  TYPE_ORDER.forEach(t=>{
-    const list = meals.filter(m=>m.type===t);
-    if (!list.length) return;
-    lines.push(`${MEAL_TYPES[t].label}:`);
-    list.forEach(m=>{
-      const nn = m.nutrition || {};
-      const ing = (m.freeText||"").trim()
-        ? m.freeText.trim()
-        : (m.ingredients||[]).filter(i=>(i.name||"").trim())
-            .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
-      const meta = `${n(nn.calories)} קק״ל (חלבון ${n(nn.protein)} ג׳, פחמימות ${n(nn.carbs)} ג׳, שומן ${n(nn.fat)} ג׳)`;
-      lines.push(`- ${m.name || MEAL_TYPES[t].label}${ing ? ` — ${ing}` : ""} — ${meta}`);
+  const dayStr = (d)=> `${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}`;
+  const start = startOfWeek(date);
+  const week = Array.from({ length:7 }, (_,i)=>addDays(start,i));
+  const weekLabel = `${dayStr(start)} – ${dayStr(addDays(start,6))}`;
+  const isTarget = (d)=> isSameDay(d, date);
+
+  const mealLine = (m, typeLabel)=>{
+    const nn = m.nutrition || {};
+    const ing = (m.freeText||"").trim()
+      ? m.freeText.trim()
+      : (m.ingredients||[]).filter(i=>(i.name||"").trim())
+          .map(i=>`${i.qty||""} ${i.unit} ${i.name}`.trim()).join(", ");
+    const meta = `${n(nn.calories)} קק״ל (חלבון ${n(nn.protein)} ג׳, פחמימות ${n(nn.carbs)} ג׳, שומן ${n(nn.fat)} ג׳)`;
+    return `- ${m.name || typeLabel}${ing ? ` — ${ing}` : ""} — ${meta}`;
+  };
+
+  const dayLines = (d)=>{
+    const day = days[key(d)] || null;
+    const meals = day?.meals || [];
+    const t = dayTotals(day);
+    const out = [];
+    const summary = meals.length
+      ? `${n(t.calories)} קק״ל · חלבון ${n(t.protein)} ג׳ · פחמימות ${n(t.carbs)} ג׳ · שומן ${n(t.fat)} ג׳ · ${meals.length} ארוחות`
+      : "לא הוזנו ארוחות (יום ריק)";
+    out.push(`${dayStr(d)}${isTarget(d) ? "  ← היום המבוקש" : ""}: ${summary}`);
+    if (!isTarget(d)) return out;
+    TYPE_ORDER.forEach(type=>{
+      const list = meals.filter(m=>m.type===type);
+      if (!list.length) return;
+      out.push(`${MEAL_TYPES[type].label}:`);
+      list.forEach(m=> out.push(mealLine(m, MEAL_TYPES[type].label)));
     });
-  });
+    return out;
+  };
+
+  const lines = [];
+  lines.push("אתה מומחה לתזונה. אני משתף אותך בנתוני יומן האכילה שלי כדי שתנתח את היום המסומן כ״היום המבוקש״.");
+  lines.push(`היום המבוקש לניתוח: ${dayStr(date)}.`);
+  lines.push(`היעדים היומיים שלי: ${n(goals.calories)} קק״ל, חלבון ${n(goals.protein)} ג׳, פחמימות ${n(goals.carbs)} ג׳, שומן ${n(goals.fat)} ג׳.`);
   lines.push("");
-  lines.push("בבקשה נתח את התזונה שלי ליום הזה: מה טוב ומה היה יכול להיות טוב יותר. התייחס לסך הקלוריות מול היעד, לאיזון שבין החלבון, הפחמימות והשומן, למגוון ולאיכות הארוחות — ותן טיפים מעשיים וקצרים.");
+  lines.push("חשוב: לא כל הימים באותו שבוע מלאים. חלק מהימים חלקיים, וייתכנו ימים שנזנחו או שהוזנו בהם מעט מאוד ארוחות (או כלום). השתמש בשיקול דעתך כדי להבחין בין ימים שמייצגים תזונה אמיתית לבין ימים חסרים/נטושים, ואל תסיק מסקנות מטעות מימים חלקיים. התמקד בניתוח של היום המבוקש, אך התחשב במגמות ובהקשר של שאר השבוע.");
+  lines.push("");
+  lines.push(`--- נתוני השבוע (${weekLabel}) ---`);
+  week.forEach(d=> dayLines(d).forEach(l=> lines.push(l)));
+  lines.push("--- סוף נתוני השבוע ---");
+  lines.push("");
+  lines.push("בבקשה נתח את התזונה שלי ליום המבוקש: מה טוב ומה היה יכול להיות טוב יותר. התייחס לסך הקלוריות מול היעד, לאיזון שבין החלבון, הפחמימות והשומן, למגוון ולאיכות הארוחות — ותן טיפים מעשיים וקצרים.");
   return lines.join("\n");
 }
 
@@ -1426,11 +1448,18 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
 
   return (
     <div style={{ padding:"0 18px 120px" }}>
-      {/* date nav: month + week arrows, then the week strip */}
+      {/* date nav: month + week arrows, then the share action, then the week strip */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 2px 8px" }}>
-        <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
-        <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
-        <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
+        <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+          <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
+          <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
+          <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
+        </div>
+        <button onClick={onCopyDay} disabled={!hasMeals}
+          aria-label="שיתוף היום לניתוח תזונתי" title="שיתוף היום לניתוח תזונתי"
+          style={{ ...iconBtn, opacity: hasMeals ? 1 : .4, cursor: hasMeals ? "pointer" : "default" }}>
+          <Share2 size={19} color={T.rose}/>
+        </button>
       </div>
       <WeekStrip date={date} setDate={setDate}/>
 
@@ -1447,11 +1476,6 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
         <MacroLegend totals={totals} goals={goals}/>
         {/* מעקב שתייה — מספר הכוסות שהוגדר בהגדרות */}
         <WaterCups count={waterCount} goal={waterGoal} onSet={onSetWater}/>
-        <button onClick={onCopyDay} disabled={!hasMeals}
-          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
-            cursor: hasMeals ? "pointer" : "default" }}>
-          <Sparkles size={16}/> העתקת היום ל-Gemini
-        </button>
       </div>
 
       {/* meals by type */}
@@ -2122,12 +2146,12 @@ export default function App() {
   // היעד התקף לתאריך המוצג (לא בהכרח היום)
   const goals = goalsForDate(data.user, dKey);
 
-  // העתקת יומן היום כפרומפט מוכן לניתוח תזונתי במודל חיצוני (Gemini וכו')
+  // שיתוף נתוני היום (עם הקשר של השבוע) כפרומפט מוכן לניתוח תזונתי במודל חיצוני
   const copyDayForAI = async ()=>{
     const dayObj = data.days[dKey];
-    if (!(dayObj?.meals||[]).length) { setToast("אין ארוחות להעתקה ביום זה"); return; }
-    const ok = await copyText(buildDayPrompt(date, dayObj, data.user, goals));
-    setToast(ok ? "היום הועתק — אפשר להדביק ב-Gemini" : "ההעתקה נכשלה, נסי שוב");
+    if (!(dayObj?.meals||[]).length) { setToast("אין ארוחות לשתף ביום זה"); return; }
+    const ok = await copyText(buildAnalysisPrompt(date, data.days, data.user, goals));
+    setToast(ok ? "הועתק — אפשר להדביק במודל לניתוח תזונתי" : "ההעתקה נכשלה, נסי שוב");
   };
 
   // שינוי יעד — יוצר/מעדכן את גרסת היום בציר, ומסנכרן את השדות הישנים
