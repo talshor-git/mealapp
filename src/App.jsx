@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.54";
+const APP_VERSION = "2.55";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -688,14 +688,14 @@ async function copyText(text) {
   } catch { return false; }
 }
 
-// פרומפט לשיתוף נתוני השבוע — הנחיה למודל חיצוני לנתח את היום המבוקש תוך התחשבות בשאר השבוע.
+// פרומפט לשיתוף נתוני הימים האחרונים — הנחיה למודל חיצוני לנתח את היום המבוקש תוך התחשבות בשאר הימים.
+// החלון: 7 הימים האחרונים עד היום המבוקש (כולל), ללא ימים עתידיים.
 // הסינון של ימים חלקיים/נטושים נעשה על ידי המודל עצמו (לפי ההנחיה), לא באפליקציה.
 function buildAnalysisPrompt(date, days, user, goals) {
   const n = (v)=> Math.round(v||0);
   const dayStr = (d)=> `${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}`;
-  const start = startOfWeek(date);
-  const week = Array.from({ length:7 }, (_,i)=>addDays(start,i));
-  const weekLabel = `${dayStr(start)} – ${dayStr(addDays(start,6))}`;
+  const window7 = Array.from({ length:7 }, (_,i)=>addDays(date, i-6));   // date-6 … date
+  const windowLabel = `${dayStr(window7[0])} – ${dayStr(date)}`;
   const isTarget = (d)=> isSameDay(d, date);
 
   const mealLine = (m, typeLabel)=>{
@@ -732,11 +732,11 @@ function buildAnalysisPrompt(date, days, user, goals) {
   lines.push(`היום המבוקש לניתוח: ${dayStr(date)}.`);
   lines.push(`היעדים היומיים שלי: ${n(goals.calories)} קק״ל, חלבון ${n(goals.protein)} ג׳, פחמימות ${n(goals.carbs)} ג׳, שומן ${n(goals.fat)} ג׳.`);
   lines.push("");
-  lines.push("חשוב: לא כל הימים באותו שבוע מלאים. חלק מהימים חלקיים, וייתכנו ימים שנזנחו או שהוזנו בהם מעט מאוד ארוחות (או כלום). השתמש בשיקול דעתך כדי להבחין בין ימים שמייצגים תזונה אמיתית לבין ימים חסרים/נטושים, ואל תסיק מסקנות מטעות מימים חלקיים. התמקד בניתוח של היום המבוקש, אך התחשב במגמות ובהקשר של שאר השבוע.");
+  lines.push("חשוב: לא כל הימים שצירפתי מלאים. חלק מהימים חלקיים, וייתכנו ימים שנזנחו או שהוזנו בהם מעט מאוד ארוחות (או כלום). השתמש בשיקול דעתך כדי להבחין בין ימים שמייצגים תזונה אמיתית לבין ימים חסרים/נטושים, ואל תסיק מסקנות מטעות מימים חלקיים. התמקד בניתוח של היום המבוקש, אך התחשב במגמות ובהקשר של שאר הימים.");
   lines.push("");
-  lines.push(`--- נתוני השבוע (${weekLabel}) ---`);
-  week.forEach(d=> dayLines(d).forEach(l=> lines.push(l)));
-  lines.push("--- סוף נתוני השבוע ---");
+  lines.push(`--- נתוני ${window7.length} הימים האחרונים (${windowLabel}) ---`);
+  window7.forEach(d=> dayLines(d).forEach(l=> lines.push(l)));
+  lines.push("--- סוף הנתונים ---");
   lines.push("");
   lines.push("בבקשה נתח את התזונה שלי ליום המבוקש: מה טוב ומה היה יכול להיות טוב יותר. התייחס לסך הקלוריות מול היעד, לאיזון שבין החלבון, הפחמימות והשומן, למגוון ולאיכות הארוחות — ותן טיפים מעשיים וקצרים.");
   return lines.join("\n");
@@ -1448,18 +1448,11 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
 
   return (
     <div style={{ padding:"0 18px 120px" }}>
-      {/* date nav: month + week arrows, then the share action, then the week strip */}
+      {/* date nav: month + week arrows, then the week strip */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 2px 8px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:2 }}>
-          <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
-          <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
-          <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
-        </div>
-        <button onClick={onCopyDay} disabled={!hasMeals}
-          aria-label="שיתוף היום לניתוח תזונתי" title="שיתוף היום לניתוח תזונתי"
-          style={{ ...iconBtn, opacity: hasMeals ? 1 : .4, cursor: hasMeals ? "pointer" : "default" }}>
-          <Share2 size={19} color={T.rose}/>
-        </button>
+        <button onClick={()=>setDate(addDays(date,-7))} style={iconBtn}><ChevronRight size={20} color={T.text2}/></button>
+        <span style={{ fontSize:14, fontWeight:500, color:T.text2 }}>{HE_MONTHS[date.getMonth()]} {date.getFullYear()}</span>
+        <button onClick={()=>setDate(addDays(date,7))} style={iconBtn}><ChevronLeft size={20} color={T.text2}/></button>
       </div>
       <WeekStrip date={date} setDate={setDate}/>
 
@@ -1507,6 +1500,19 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
           </div>
         );
       })}
+
+      {/* שיתוף היום לניתוח חיצוני — בתחתית המסך, אחרי גלילת הארוחות */}
+      <div style={{ marginTop:6, paddingTop:20, borderTop:`1px solid ${T.border}`,
+        display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+        <p style={{ margin:0, fontSize:12.5, color:T.text3, textAlign:"center", maxWidth:320, lineHeight:1.5 }}>
+          רוצה משוב על התזונה של היום? שתפי אותו עם מודל תזונה חיצוני וקבלי ניתוח של מה טוב ומה אפשר לשפר.
+        </p>
+        <button onClick={onCopyDay} disabled={!hasMeals}
+          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
+            cursor: hasMeals ? "pointer" : "default" }}>
+          <Share2 size={16}/> שיתוף היום לניתוח תזונתי
+        </button>
+      </div>
     </div>
   );
 }
