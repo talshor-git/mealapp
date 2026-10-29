@@ -536,13 +536,15 @@ const iconBtn = { background:"transparent", border:"none", cursor:"pointer", pad
 // ============================================================
 //  MEAL DETAILS MODAL — view what was entered
 // ============================================================
-function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate }) {
+function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate, onRename }) {
   const type = MEAL_TYPES[meal.type] || MEAL_TYPES.snack;
   const n = meal.nutrition || {};
   const ings = (meal.ingredients || []).filter(i=>(i.name||"").trim());
   const [tipLoading, setTipLoading] = useState(false);
   const [tipError, setTipError] = useState("");
   const [tipExpanded, setTipExpanded] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(meal.name || "");
   const tipChecked = isTipChecked(meal);
   const checkTip = async ()=>{
     if (!aiConfig?.apiKey) { setTipError("לא הוגדר מפתח API — הוסיפי אותו בעמוד הפרופיל."); return; }
@@ -569,8 +571,30 @@ function MealDetailsModal({ meal, onClose, onEdit, onCopy, aiConfig, onTipUpdate
             boxShadow:T.shGlow, marginBottom:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <span style={{ fontSize:30 }}>{meal.emoji || type.emoji}</span>
-              <div>
-                <p style={{ margin:0, fontSize:17, fontWeight:500 }}>{meal.name}</p>
+              <div style={{ flex:1, minWidth:0 }}>
+                {editingName ? (
+                  <form onSubmit={e=>{ e.preventDefault(); const name=draftName.trim(); if (!name) return; onRename(name); setEditingName(false); }}>
+                    <label htmlFor="meal-name-edit" style={{ display:"block", fontSize:12, marginBottom:6 }}>שם הארוחה</label>
+                    <input id="meal-name-edit" autoFocus value={draftName}
+                      onChange={e=>setDraftName(e.target.value)}
+                      onKeyDown={e=>{ if(e.key==="Escape") { e.preventDefault(); setEditingName(false); } }}
+                      style={{ ...input, width:"100%", minWidth:0, boxSizing:"border-box" }}/>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:8 }}>
+                      <button type="submit" disabled={!draftName.trim()}
+                        style={{ ...softBtn, padding:"8px 12px", opacity:draftName.trim()?1:.5 }}>שמירה</button>
+                      <button type="button" onClick={()=>setEditingName(false)}
+                        style={{ ...softBtn, padding:"8px 12px" }}>ביטול</button>
+                    </div>
+                  </form>
+                ) : (
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <p style={{ margin:0, fontSize:17, fontWeight:500, minWidth:0, overflowWrap:"anywhere" }}>{meal.name}</p>
+                    {onRename && <button onClick={()=>{ setDraftName(meal.name || ""); setEditingName(true); }}
+                      aria-label="שינוי שם הארוחה" style={{ ...iconBtn, flexShrink:0, color:"#fff", width:44, height:44 }}>
+                      <Pencil size={17}/>
+                    </button>}
+                  </div>
+                )}
                 <p style={{ margin:"2px 0 0", fontSize:12, opacity:.9 }}>{type.label}</p>
               </div>
             </div>
@@ -2486,6 +2510,12 @@ export default function App() {
       {detailsMeal && (
         <MealDetailsModal meal={detailsMeal} aiConfig={aiConfig}
           onClose={()=>setDetailsMeal(null)}
+          onRename={detailsSaved ? undefined : (name)=>{
+            setData(d=>({ ...d, days:{ ...d.days, [dKey]:{ ...d.days[dKey],
+              meals:d.days[dKey].meals.map(m=>m.id===detailsMeal.id ? { ...m, name } : m) } } }));
+            setDetailsMeal(m=>({ ...m, name }));
+            setToast("שם הארוחה עודכן");
+          }}
           onTipUpdate={(t)=>{
             const updated = { ...detailsMeal, tip:t.tip, tipGood:t.tipGood, tipChecked:true };
             setDetailsMeal(updated);
