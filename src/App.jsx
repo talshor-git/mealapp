@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.58";
+const APP_VERSION = "2.59";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1670,19 +1670,16 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
 
       {/* שיתוף היום לחבר / לניתוח חיצוני — בתחתית המסך, אחרי גלילת הארוחות */}
       <div style={{ marginTop:6, paddingTop:20, borderTop:`1px solid ${T.border}`,
-        display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
-        <p style={{ margin:0, fontSize:12.5, color:T.text3, textAlign:"center", maxWidth:320, lineHeight:1.5 }}>
-          רוצה לשתף את היום? אפשר לשלוח תמונה מסודרת של הסיכום לחבר, או לשתף את הנתונים עם מודל תזונה חיצוני לניתוח.
-        </p>
+        display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:10 }}>
         <button onClick={onShareImage} disabled={!hasMeals}
-          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
+          style={{ ...softBtn, minWidth:0, padding:"12px 8px", opacity: hasMeals ? 1 : .5,
             cursor: hasMeals ? "pointer" : "default" }}>
-          <ImageIcon size={16}/> שיתוף תמונת היום
+          <ImageIcon size={16} style={{ flexShrink:0 }}/> שיתוף היום
         </button>
         <button onClick={onCopyDay} disabled={!hasMeals}
-          style={{ ...softBtn, width:"100%", maxWidth:360, opacity: hasMeals ? 1 : .5,
+          style={{ ...softBtn, minWidth:0, padding:"12px 8px", opacity: hasMeals ? 1 : .5,
             cursor: hasMeals ? "pointer" : "default" }}>
-          <Share2 size={16}/> שיתוף היום לניתוח תזונתי
+          <Share2 size={16} style={{ flexShrink:0 }}/> ניתוח תזונתי
         </button>
       </div>
     </div>
