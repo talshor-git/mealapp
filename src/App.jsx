@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.61";
+const APP_VERSION = "2.62";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1925,14 +1925,34 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
     setAiSaved(true); setTimeout(()=>setAiSaved(false), 1600);
   };
 
-  // טעינה מחדש ישר לגרסה האחרונה של האתר — עם עקיפת מטמון
-  const reloadLatest = ()=>{
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState("");
+  const reloadLatest = async ()=>{
+    if (updateBusy) return;
+    setUpdateBusy(true);
+    setUpdateMessage("בודקת אם יש גרסה חדשה…");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(()=>controller.abort(), 8000);
     try {
+      const checkURL = new URL("./version.json", window.location.href);
+      checkURL.searchParams.set("t", Date.now());
+      const response = await fetch(checkURL, { cache:"no-store", signal:controller.signal });
+      if (!response.ok) throw new Error("version");
+      const { version } = await response.json();
+      if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error("version");
+      if (version === `${APP_VERSION}.0`) {
+        setUpdateMessage("האפליקציה כבר מעודכנת לגרסה האחרונה");
+        return;
+      }
+      setUpdateMessage("נמצאה גרסה חדשה, טוענת…");
       const url = new URL(window.location.href);
-      url.searchParams.set("v", Date.now());
+      url.searchParams.set("v", version);
       window.location.replace(url.toString());
     } catch {
-      window.location.reload();
+      setUpdateMessage("לא ניתן לבדוק עדכונים כרגע. בדקי את החיבור ונסי שוב.");
+    } finally {
+      window.clearTimeout(timeout);
+      setUpdateBusy(false);
     }
   };
 
@@ -2082,11 +2102,12 @@ function ProfileView({ user, setUser, onSetGoal, themeMode, onSetTheme, onExport
 
       <button onClick={onReset} style={{ ...linkBtn, marginTop:20, color:T.fat }}>איפוס כל הנתונים</button>
 
-      <button onClick={reloadLatest} style={{ ...softBtn, width:"100%", marginTop:18 }}>
-        <RefreshCw size={16}/> עדכון גרסה
+      <button onClick={reloadLatest} disabled={updateBusy}
+        style={{ ...softBtn, width:"100%", marginTop:18, opacity:updateBusy?.65:1 }}>
+        <RefreshCw size={16} className={updateBusy ? "spin" : undefined}/> {updateBusy ? "בודקת עדכונים…" : "עדכון גרסה"}
       </button>
-      <p style={{ margin:"8px 0 0", fontSize:11, color:T.text3, textAlign:"center" }}>
-        טוען את העמוד מחדש ישר לגרסה האחרונה של האתר.
+      <p role="status" style={{ margin:"8px 0 0", fontSize:11, color:T.text3, textAlign:"center" }}>
+        {updateMessage || "בודקת עדכונים וטוענת מחדש רק כשיש גרסה חדשה."}
       </p>
 
       <p style={{ margin:"24px 0 0", fontSize:12, color:T.text3, textAlign:"center" }}>
