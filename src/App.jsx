@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.64";
+const APP_VERSION = "2.65";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1271,9 +1271,8 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 <button key={sm.id} onClick={()=>setPickedId(sm.id)}
                   style={{ display:"flex", alignItems:"center", gap:10, width:"100%", textAlign:"right",
                     background:T.surface, borderRadius:16, padding:"12px 14px", cursor:"pointer",
-                    border:`1.5px solid ${active ? "transparent" : T.border}`,
-                    boxShadow: active ? T.shGlow : T.shCard,
-                    outline: active ? `2px solid ${T.rose}` : "none", outlineOffset:2 }}>
+                    flexShrink:0, border:`2px solid ${active ? T.rose : T.border}`,
+                    boxShadow: active ? T.shGlow : T.shCard }}>
                   <div style={{ width:44, height:44, borderRadius:14, background:T.proteinL, display:"flex",
                     alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{sm.emoji||"🍽️"}</div>
                   <div style={{ flex:1, minWidth:0 }}>
