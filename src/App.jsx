@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.59";
+const APP_VERSION = "2.60";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -2196,7 +2196,7 @@ export default function App() {
     if (s.locked !== "h") return;
     s.dx = dx;
     const el = paneRef.current;
-    if (el) { el.style.transition = "none"; el.style.transform = `translateX(${dx}px)`; }
+    if (el) { el.style.transition = "none"; el.style.transform = `translateX(${48 * Math.tanh(dx / 96)}px)`; }
   };
   const onSwipeEnd = ()=>{
     const s = dragRef.current;
@@ -2206,26 +2206,26 @@ export default function App() {
     const el = paneRef.current;
     const dt = Math.max(1, Date.now() - s.t);
     const dx = s.dx;
-    const w = (typeof window !== "undefined" && window.innerWidth) || 480;
+    const travel = 48;
     const fast = Math.abs(dx) / dt > 0.5;                 // החלקה מהירה (px/ms)
-    if (Math.abs(dx) < 70 && !fast) {                     // סף לא הושג — חזרה למקום
-      if (el) { el.style.transition = "transform .22s ease"; el.style.transform = "translateX(0px)"; }
+    if (Math.abs(dx) < 36 && !fast) {                     // סף לא הושג — חזרה למקום
+      if (el) { el.style.transition = "transform .12s ease-out"; el.style.transform = "translateX(0px)"; }
       return;
     }
     const dir = dx > 0 ? 1 : -1;                          // ימינה = היום הבא
-    if (el) { el.style.transition = "transform .2s ease"; el.style.transform = `translateX(${dir * w}px)`; }
+    if (el) { el.style.transition = "transform .09s ease-out"; el.style.transform = `translateX(${dir * travel}px)`; }
     window.setTimeout(()=>{
       const node = paneRef.current;
       setDate(addDays(date, dir));
       if (node) {
         node.style.transition = "none";
-        node.style.transform = `translateX(${-dir * w}px)`;
+        node.style.transform = `translateX(${-dir * travel}px)`;
         requestAnimationFrame(()=>requestAnimationFrame(()=>{
-          node.style.transition = "transform .22s ease";
+          node.style.transition = "transform .12s ease-out";
           node.style.transform = "translateX(0px)";
         }));
       }
-    }, 200);
+    }, 90);
   };
   const [modal, setModal] = useState(false);
   const [modalType, setModalType] = useState(null);
