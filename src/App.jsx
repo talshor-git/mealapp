@@ -143,7 +143,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.62";
+const APP_VERSION = "2.63";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -907,6 +907,52 @@ async function drawDayImage(day, date, user, goals) {
     try { canvas.toBlob((b)=> b ? res(b) : rej(new Error("no blob")), "image/png"); }
     catch (e) { rej(e); }
   });
+}
+
+async function drawWeekImage(days, anchor, user) {
+  try { await document.fonts?.ready; } catch {}
+  const start = startOfWeek(anchor);
+  const week = Array.from({ length:7 }, (_,i)=>addDays(start,i));
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080; canvas.height = 1540;
+  const ctx = canvas.getContext("2d");
+  ctx.direction = "rtl";
+  const text = (value, x, y, size=28, color=T.ink, weight=400)=>{
+    ctx.font = `${weight} ${size}px Heebo, system-ui, sans-serif`;
+    ctx.fillStyle = color; ctx.textAlign = "right";
+    ctx.fillText(value, x, y);
+  };
+  ctx.fillStyle = T.page; ctx.fillRect(0,0,1080,1540);
+  const gradient = ctx.createLinearGradient(0,0,1080,260);
+  gradient.addColorStop(0,T.coral); gradient.addColorStop(1,T.violet);
+  ctx.fillStyle = gradient; ctx.fillRect(0,0,1080,260);
+  text("בְּתֵאָבוֹן · סיכום שבועי",1020,78,46,"#fff",700);
+  const formatDate = d=>`${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
+  text(`${formatDate(start)} – ${formatDate(week[6])}`,1020,145,34,"#fff");
+  const count = week.filter(d=>days[key(d)]?.meals?.length).length;
+  text(`${count} ימים עם ארוחות מתועדות`,1020,208,28,"#fff");
+  week.forEach((date,i)=>{
+    const day = days[key(date)];
+    const totals = dayTotals(day);
+    const goals = goalsForDate(user,key(date));
+    const y = 290 + i*160;
+    roundRectPath(ctx,60,y,960,140,24);
+    ctx.fillStyle = T.surface; ctx.fill();
+    ctx.strokeStyle = T.border; ctx.lineWidth = 2; ctx.stroke();
+    text(`${HE_DAYS[date.getDay()]} · ${date.getDate()}.${date.getMonth()+1}`,990,y+43,30,T.ink,700);
+    if (!day?.meals?.length) {
+      text("לא תועדו ארוחות",990,y+96,27,T.text3);
+      return;
+    }
+    text(`${Math.round(totals.calories)} / ${goals.calories} קק״ל`,590,y+43,30,T.rose,700);
+    text(`חלבון ${Math.round(totals.protein)} ג׳ · פחמימות ${Math.round(totals.carbs)} ג׳ · שומן ${Math.round(totals.fat)} ג׳`,990,y+93,27,T.text2);
+    ctx.fillStyle = T.border; ctx.fillRect(90,y+115,900,6);
+    ctx.fillStyle = T.rose;
+    const width = goals.calories ? Math.min(totals.calories/goals.calories,1)*900 : 0;
+    ctx.fillRect(990-width,y+115,width,6);
+  });
+  text("הסיכום מבוסס על הארוחות שתועדו ביומן",1020,1478,25,T.text3);
+  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob ? resolve(blob) : reject(new Error("image")),"image/png"));
 }
 
 function parseNutrition(text) {
@@ -1689,9 +1735,10 @@ function DailyView({ date, setDate, day, user, goals, onAdd, onDeleteMeal, onVie
 // ============================================================
 //  CALENDAR VIEW (week / month)
 // ============================================================
-function CalendarView({ days, user, onPick }) {
+function CalendarView({ days, user, onPick, onShareWeek }) {
   const [mode, setMode] = useState("week");
   const [anchor, setAnchor] = useState(new Date());
+  const [sharing, setSharing] = useState(false);
 
   return (
     <div style={{ padding:"14px 18px 120px" }}>
@@ -1703,6 +1750,13 @@ function CalendarView({ days, user, onPick }) {
       {mode==="week"
         ? <WeekGrid anchor={anchor} setAnchor={setAnchor} days={days} user={user} onPick={onPick}/>
         : <MonthGrid anchor={anchor} setAnchor={setAnchor} days={days} user={user} onPick={onPick}/>}
+      {mode==="week" && <button disabled={sharing} onClick={async ()=>{
+        setSharing(true);
+        try { await onShareWeek(anchor); } finally { setSharing(false); }
+      }} style={{ ...softBtn, width:"100%", marginTop:20, opacity:sharing?.6:1 }}>
+        {sharing ? <Loader2 size={16} className="spin"/> : <ImageIcon size={16}/>}
+        {sharing ? "מכינה תמונה…" : "שיתוף השבוע"}
+      </button>}
     </div>
   );
 }
@@ -2358,6 +2412,28 @@ export default function App() {
     }
   };
 
+  const shareWeekImage = async (anchor)=>{
+    const start = startOfWeek(anchor);
+    if (!Array.from({ length:7 },(_,i)=>data.days[key(addDays(start,i))]).some(d=>d?.meals?.length)) {
+      setToast("אין ארוחות לשיתוף בשבוע זה"); return;
+    }
+    try {
+      const blob = await drawWeekImage(data.days,anchor,data.user);
+      const file = new File([blob],`beteavon-week-${key(start)}.png`,{ type:"image/png" });
+      if (navigator.canShare?.({ files:[file] })) {
+        await navigator.share({ files:[file], title:"סיכום השבוע · בְּתֵאָבוֹן" });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url; link.download = file.name; link.click();
+        setTimeout(()=>URL.revokeObjectURL(url),4000);
+        setToast("תמונת השבוע הורדה");
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setToast("יצירת התמונה נכשלה, נסי שוב");
+    }
+  };
+
   // שינוי יעד — יוצר/מעדכן את גרסת היום בציר, ומסנכרן את השדות הישנים
   const setGoal = (patch)=> setData(d=>{
     if(!d?.user) return d;
@@ -2497,7 +2573,7 @@ export default function App() {
             </div>
           </div>
         )}
-        {tab==="calendar" && <CalendarView days={data.days} user={data.user}
+        {tab==="calendar" && <CalendarView days={data.days} user={data.user} onShareWeek={shareWeekImage}
           onPick={(d)=>{ goToDate(d); setTab("daily"); }}/>}
         {tab==="library" && <LibraryView savedMeals={data.savedMeals}
           onQuickAdd={quickAddSaved} onEdit={setEditSavedMeal}
