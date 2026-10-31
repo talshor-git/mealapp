@@ -144,7 +144,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.66";
+const APP_VERSION = "2.67";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1040,6 +1040,7 @@ async function fetchTip(meal, aiConfig){
 
 function QuantityInput({ value, onChange, style, name }) {
   const [picker, setPicker] = useState(null);
+  const [editing, setEditing] = useState(false);
   const gesture = useRef(null);
   const timer = useRef(null);
   const suppressClick = useRef(false);
@@ -1075,7 +1076,16 @@ function QuantityInput({ value, onChange, style, name }) {
     };
   }, []);
 
+  const beginEditing = element => {
+    suppressClick.current = false;
+    element.readOnly = false;
+    element.inputMode = "decimal";
+    setEditing(true);
+    element.focus({ preventScroll:true });
+  };
+
   const start = e => {
+    if (editing) return;
     if (!e.isPrimary) { cancel(); return; }
     if (e.button !== 0) return;
     e.preventDefault();
@@ -1135,20 +1145,24 @@ function QuantityInput({ value, onChange, style, name }) {
       suppressClick.current = true;
       if (g.selected !== 0) onChange(String(Math.max(0, Number((g.base + g.selected).toFixed(6)))));
     } else {
-      suppressClick.current = false;
-      e.currentTarget.focus();
+      beginEditing(e.currentTarget);
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   return <>
     <input ref={inputRef} style={{ ...style, touchAction:"none", WebkitTouchCallout:"none" }}
-      value={value} onChange={e=>onChange(e.target.value)} placeholder="כמות" inputMode="decimal"
+      value={value} onChange={e=>onChange(e.target.value)} placeholder="כמות"
+      readOnly={!editing} inputMode={editing ? "decimal" : "none"}
+      onBlur={()=>setEditing(false)} onKeyDown={e=>{
+        if (!editing && e.key === "Enter") { e.preventDefault(); beginEditing(e.currentTarget); }
+        if (editing && e.key === "Escape") e.currentTarget.blur();
+      }}
       aria-label={`כמות${name ? ` של ${name}` : ""}`} title="לחיצה ארוכה וגרירה לבחירת כמות"
       onPointerDown={start} onPointerMove={move} onPointerUp={finish}
       onPointerCancel={cancel} onLostPointerCapture={()=>{ if (gesture.current) cancel(); }}
       onContextMenu={e=>e.preventDefault()} onClick={e=>{
-        if (suppressClick.current) { e.preventDefault(); e.currentTarget.blur(); }
+        if (suppressClick.current || !editing) { e.preventDefault(); e.currentTarget.blur(); }
       }}/>
     {picker && createPortal(<div style={{ position:"fixed", inset:0, zIndex:10000, pointerEvents:"none" }}>
       <div role="status" aria-live="polite" aria-label={`כמות ${Math.max(0, Number((picker.base + picker.selected).toFixed(6)))}`} dir="ltr">
