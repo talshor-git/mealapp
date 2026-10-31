@@ -144,7 +144,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.67";
+const APP_VERSION = "2.68";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1045,8 +1045,16 @@ function QuantityInput({ value, onChange, style, name }) {
   const timer = useRef(null);
   const suppressClick = useRef(false);
   const inputRef = useRef(null);
+  const selectionLocked = useRef(false);
+
+  const unlockSelection = () => {
+    if (!selectionLocked.current) return;
+    selectionLocked.current = false;
+    document.documentElement.classList.remove("quantity-gesture");
+  };
 
   const cancel = () => {
+    unlockSelection();
     clearTimeout(timer.current);
     const g = gesture.current;
     if (g) {
@@ -1059,6 +1067,14 @@ function QuantityInput({ value, onChange, style, name }) {
 
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") cancel(); };
+    const preventSelection = e => {
+      if (selectionLocked.current) e.preventDefault();
+    };
+    const clearSelection = () => {
+      if (selectionLocked.current && !window.getSelection()?.isCollapsed) window.getSelection()?.removeAllRanges();
+    };
+    document.addEventListener("selectstart", preventSelection);
+    document.addEventListener("selectionchange", clearSelection);
     window.addEventListener("blur", cancel);
     window.addEventListener("resize", cancel);
     window.visualViewport?.addEventListener("resize", cancel);
@@ -1066,6 +1082,9 @@ function QuantityInput({ value, onChange, style, name }) {
     document.addEventListener("visibilitychange", cancel);
     document.addEventListener("keydown", onKey);
     return () => {
+      unlockSelection();
+      document.removeEventListener("selectstart", preventSelection);
+      document.removeEventListener("selectionchange", clearSelection);
       clearTimeout(timer.current);
       window.removeEventListener("blur", cancel);
       window.removeEventListener("resize", cancel);
@@ -1089,6 +1108,9 @@ function QuantityInput({ value, onChange, style, name }) {
     if (!e.isPrimary) { cancel(); return; }
     if (e.button !== 0) return;
     e.preventDefault();
+    selectionLocked.current = true;
+    document.documentElement.classList.add("quantity-gesture");
+    window.getSelection()?.removeAllRanges();
     suppressClick.current = false;
     const parsed = Number(String(value).trim().replace(",", "."));
     const base = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -1139,6 +1161,7 @@ function QuantityInput({ value, onChange, style, name }) {
       return;
     }
     clearTimeout(timer.current);
+    unlockSelection();
     gesture.current = null;
     setPicker(null);
     if (g.active) {
@@ -1151,7 +1174,8 @@ function QuantityInput({ value, onChange, style, name }) {
   };
 
   return <>
-    <input ref={inputRef} style={{ ...style, touchAction:"none", WebkitTouchCallout:"none" }}
+    <input ref={inputRef} style={{ ...style, touchAction:"none", WebkitTouchCallout:"none",
+      userSelect:editing ? "text" : "none", WebkitUserSelect:editing ? "text" : "none" }}
       value={value} onChange={e=>onChange(e.target.value)} placeholder="כמות"
       readOnly={!editing} inputMode={editing ? "decimal" : "none"}
       onBlur={()=>setEditing(false)} onKeyDown={e=>{
