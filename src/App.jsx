@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Component } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus, X, ChevronRight, ChevronLeft, Sunrise, Sun, Moon, Cookie,
   BookOpen, CalendarDays, LayoutGrid, User, Sparkles, Copy, Check,
@@ -143,7 +144,7 @@ const UNITS = ["גרם", "מ״ל", "יחידה", "כף", "כוס", "פרוסה"]
 const HE_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const HE_DAYS_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-const APP_VERSION = "2.65";
+const APP_VERSION = "2.66";
 // משך תוקף "לוח ההעתקה" — ארוחה מועתקת ניתנת להדבקה למשך דקה בלבד
 const CLIP_TTL_MS = 60 * 1000;
 
@@ -1037,6 +1038,138 @@ async function fetchTip(meal, aiConfig){
   return parseTip(text);
 }
 
+function QuantityInput({ value, onChange, style, name }) {
+  const [picker, setPicker] = useState(null);
+  const gesture = useRef(null);
+  const timer = useRef(null);
+  const suppressClick = useRef(false);
+  const inputRef = useRef(null);
+
+  const cancel = () => {
+    clearTimeout(timer.current);
+    const g = gesture.current;
+    if (g) {
+      suppressClick.current = true;
+      gesture.current = null;
+      if (inputRef.current?.hasPointerCapture(g.id)) inputRef.current.releasePointerCapture(g.id);
+    }
+    setPicker(null);
+  };
+
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") cancel(); };
+    window.addEventListener("blur", cancel);
+    window.addEventListener("resize", cancel);
+    window.visualViewport?.addEventListener("resize", cancel);
+    window.addEventListener("scroll", cancel, true);
+    document.addEventListener("visibilitychange", cancel);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(timer.current);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("resize", cancel);
+      window.visualViewport?.removeEventListener("resize", cancel);
+      window.removeEventListener("scroll", cancel, true);
+      document.removeEventListener("visibilitychange", cancel);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const start = e => {
+    if (!e.isPrimary) { cancel(); return; }
+    if (e.button !== 0) return;
+    e.preventDefault();
+    suppressClick.current = false;
+    const parsed = Number(String(value).trim().replace(",", "."));
+    const base = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    const g = { id:e.pointerId, x:e.clientX, y:e.clientY, lastY:e.clientY, base, selected:0, active:false };
+    gesture.current = g;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    timer.current = setTimeout(() => {
+      if (gesture.current !== g) return;
+      g.active = true;
+      g.y = g.lastY;
+      g.above = Math.max(0, Math.min(3, Math.floor((g.y - 32) / 44)));
+      g.below = Math.max(0, Math.min(3, Math.floor((window.innerHeight - g.y - 32) / 44), Math.ceil(base)));
+      g.centerX = Math.max(44, Math.min(window.innerWidth - 44, g.x));
+      g.curveDirection = g.centerX < window.innerWidth / 2 ? 1 : -1;
+      suppressClick.current = true;
+      setPicker({ ...g });
+    }, 450);
+  };
+
+  const move = e => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    g.lastY = e.clientY;
+    if (!g.active) {
+      if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 8) cancel();
+      return;
+    }
+    if (Math.abs(e.clientX - g.x) > 80 || e.clientY < g.y - (g.above + 0.75) * 44 || e.clientY > g.y + (g.below + 0.75) * 44) {
+      cancel();
+      return;
+    }
+    const delta = (g.y - e.clientY) / 44;
+    let selected = g.selected;
+    if (delta > selected + 0.7) selected = Math.floor(delta + 0.3);
+    if (delta < selected - 0.7) selected = Math.ceil(delta - 0.3);
+    selected = Math.max(-g.below, Math.min(g.above, selected));
+    if (selected !== g.selected) {
+      g.selected = selected;
+      setPicker({ ...g });
+    }
+  };
+
+  const finish = e => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    if (Math.abs(e.clientX - g.x) > 80 || (g.active && (e.clientY < g.y - (g.above + 0.75) * 44 || e.clientY > g.y + (g.below + 0.75) * 44))) {
+      cancel();
+      return;
+    }
+    clearTimeout(timer.current);
+    gesture.current = null;
+    setPicker(null);
+    if (g.active) {
+      suppressClick.current = true;
+      if (g.selected !== 0) onChange(String(Math.max(0, Number((g.base + g.selected).toFixed(6)))));
+    } else {
+      suppressClick.current = false;
+      e.currentTarget.focus();
+    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  return <>
+    <input ref={inputRef} style={{ ...style, touchAction:"none", WebkitTouchCallout:"none" }}
+      value={value} onChange={e=>onChange(e.target.value)} placeholder="כמות" inputMode="decimal"
+      aria-label={`כמות${name ? ` של ${name}` : ""}`} title="לחיצה ארוכה וגרירה לבחירת כמות"
+      onPointerDown={start} onPointerMove={move} onPointerUp={finish}
+      onPointerCancel={cancel} onLostPointerCapture={()=>{ if (gesture.current) cancel(); }}
+      onContextMenu={e=>e.preventDefault()} onClick={e=>{
+        if (suppressClick.current) { e.preventDefault(); e.currentTarget.blur(); }
+      }}/>
+    {picker && createPortal(<div style={{ position:"fixed", inset:0, zIndex:10000, pointerEvents:"none" }}>
+      <div role="status" aria-live="polite" aria-label={`כמות ${Math.max(0, Number((picker.base + picker.selected).toFixed(6)))}`} dir="ltr">
+        {Array.from({ length:picker.above + picker.below + 1 }, (_, index)=>picker.above - index).map(offset=>{
+          const selected = offset === picker.selected;
+          return <div key={offset} style={{ position:"absolute",
+            left:picker.centerX - 32 + picker.curveDirection * offset * offset * 3,
+            top:picker.y - offset * 44 - 21, width:64, height:42,
+            display:"flex", alignItems:"center", justifyContent:"center", borderRadius:21,
+            border:`1px solid ${selected ? T.coral : T.border}`,
+            background:selected ? T.gradPrimary : T.surface, color:selected ? "#fff" : T.text2,
+            boxShadow:T.shRaised, userSelect:"none",
+            fontSize:selected ? 23 : 18, fontWeight:selected ? 800 : 500, fontVariantNumeric:"tabular-nums" }}>
+            {Math.max(0, Number((picker.base + offset).toFixed(6)))}
+          </div>;
+        })}
+      </div>
+    </div>, document.body)}
+  </>;
+}
+
 function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal, initialType, onUpdate, onUpdateSaved, aiConfig, defaultIngMode, clipboardMeal, clipboardExpiresAt, onPasteClipboard }) {
   const isEdit = !!initialMeal;
   const isSavedEdit = !!onUpdateSaved;
@@ -1352,7 +1485,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                 {meal.ingredients.map((ing,i)=>(
                   <div key={i} style={{ display:"flex", gap:6, marginBottom:8 }}>
                     <input style={{ ...input, flex:2 }} value={ing.name} onChange={e=>onIngredientChange(i,"name",e.target.value)} placeholder="רכיב"/>
-                    <input style={{ ...input, width:60 }} value={ing.qty} onChange={e=>onIngredientChange(i,"qty",e.target.value)} placeholder="כמות" inputMode="numeric"/>
+                    <QuantityInput style={{ ...input, width:60 }} value={ing.qty} name={ing.name} onChange={v=>onIngredientChange(i,"qty",v)}/>
                     <select style={{ ...input, width:78, padding:"10px 8px" }} value={ing.unit} onChange={e=>onIngredientChange(i,"unit",e.target.value)}>
                       {UNITS.map(u=><option key={u}>{u}</option>)}
                     </select>
@@ -1361,6 +1494,7 @@ function AddMealModal({ onClose, onAddToDay, onSaveMeal, savedMeals, initialMeal
                     )}
                   </div>
                 ))}
+                <div style={{ fontSize:11, color:T.text3, margin:"2px 0 8px" }}>לחיצה ארוכה על הכמות וגרירה למעלה או למטה לבחירה</div>
                 <button onClick={addIng} style={{ ...ghostBtn, width:"100%", marginTop:4 }}>
                   <Plus size={16}/> רכיב נוסף
                 </button>
